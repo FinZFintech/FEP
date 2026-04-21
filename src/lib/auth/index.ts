@@ -3,6 +3,8 @@ import GoogleProvider from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/db";
 
+const ALLOWED_EMAIL_DOMAIN = "finz.finance";
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   providers: [
@@ -17,6 +19,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     error: "/login",
   },
   callbacks: {
+    async signIn({ profile }) {
+      const email = profile?.email?.toLowerCase();
+      return !!email && email.endsWith(`@${ALLOWED_EMAIL_DOMAIN}`);
+    },
     async session({ session, user }) {
       if (session.user) {
         session.user.id = user.id;
