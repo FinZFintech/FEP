@@ -12,8 +12,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json() as AssessmentInput & { notes?: string };
 
-  const ep = computeEP(body);
-  const fip = computeFIP(body);
+  const [ep, fip] = await Promise.all([computeEP(body), computeFIP(body)]);
 
   const assessment = await prisma.assessment.create({
     data: {

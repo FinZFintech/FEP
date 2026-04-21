@@ -24,8 +24,7 @@ export async function POST(req: NextRequest) {
   const results = [];
 
   for (const row of body.rows) {
-    const ep = computeEP(row);
-    const fip = computeFIP(row);
+    const [ep, fip] = await Promise.all([computeEP(row), computeFIP(row)]);
 
     const assessment = await prisma.assessment.create({
       data: {

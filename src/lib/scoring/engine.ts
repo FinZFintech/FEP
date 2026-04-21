@@ -1,4 +1,5 @@
 import type { AssessmentInput, EPResult, FIPResult, EPBreakdownItem, FIPBreakdownItem } from "./types";
+import { getSchoolEarnings, getProgramEarnings, getOccupationWages, getOccupationGrowth, getH1BSalary, getOccupationDetails } from "../apis";
 
 import universitiesData from "./lookups/universities.json";
 import coursesData from "./lookups/courses.json";
@@ -36,14 +37,13 @@ function getTierData(tier: string) {
 }
 
 function cgpaScore(cgpa: number, baseline: number): number {
-  // Normalize CGPA — handles both 4.0 and 10.0 scales
   const normalized = cgpa > 4.5 ? cgpa / 10 : cgpa / 4;
   const baselineNorm = baseline > 4.5 ? baseline / 10 : baseline / 4;
   const ratio = normalized / baselineNorm;
   return Math.min(100, Math.round(ratio * 100));
 }
 
-function greScore(score?: number): { score: number; rationale: string } {
+function greScoreFn(score?: number): { score: number; rationale: string } {
   if (!score) return { score: 50, rationale: "GRE not provided — neutral score applied" };
   if (score >= 325) return { score: 100, rationale: `GRE ${score} — Excellent (≥325)` };
   if (score >= 315) return { score: 85, rationale: `GRE ${score} — Strong (315–324)` };
@@ -52,7 +52,7 @@ function greScore(score?: number): { score: number; rationale: string } {
   return { score: 35, rationale: `GRE ${score} — Below average (<295)` };
 }
 
-function gmatScore(score?: number): { score: number; rationale: string } {
+function gmatScoreFn(score?: number): { score: number; rationale: string } {
   if (!score) return { score: 50, rationale: "GMAT not provided — neutral score applied" };
   if (score >= 720) return { score: 100, rationale: `GMAT ${score} — Excellent (≥720)` };
   if (score >= 680) return { score: 85, rationale: `GMAT ${score} — Strong (680–719)` };
@@ -68,13 +68,14 @@ function workExpScore(years: number): { score: number; rationale: string } {
   return { score: 40, rationale: "Fresh graduate — limited work experience" };
 }
 
-function blsGrowthScore(growth: number): { score: number; rationale: string } {
-  if (growth >= 25) return { score: 100, rationale: `${growth}% BLS 10-yr growth — Very high demand` };
-  if (growth >= 15) return { score: 88, rationale: `${growth}% BLS 10-yr growth — High demand` };
-  if (growth >= 10) return { score: 75, rationale: `${growth}% BLS 10-yr growth — Above-average demand` };
-  if (growth >= 5) return { score: 60, rationale: `${growth}% BLS 10-yr growth — Moderate demand` };
-  if (growth >= 0) return { score: 45, rationale: `${growth}% BLS 10-yr growth — Low demand` };
-  return { score: 20, rationale: `${growth}% BLS 10-yr growth — Declining occupation` };
+function blsGrowthScore(growth: number): { score: number; rationale: string; source: string } {
+  const src = "BLS Employment Projections 2023–2033";
+  if (growth >= 25) return { score: 100, rationale: `${growth}% projected 10-yr growth — Very high demand`, source: src };
+  if (growth >= 15) return { score: 88, rationale: `${growth}% projected 10-yr growth — High demand`, source: src };
+  if (growth >= 10) return { score: 75, rationale: `${growth}% projected 10-yr growth — Above-average demand`, source: src };
+  if (growth >= 5) return { score: 60, rationale: `${growth}% projected 10-yr growth — Moderate demand`, source: src };
+  if (growth >= 0) return { score: 45, rationale: `${growth}% projected 10-yr growth — Low demand`, source: src };
+  return { score: 20, rationale: `${growth}% projected 10-yr growth — Declining occupation`, source: src };
 }
 
 function stemScore(isStem: boolean, country: string): { score: number; rationale: string } {
@@ -82,15 +83,9 @@ function stemScore(isStem: boolean, country: string): { score: number; rationale
   if (!isStem) {
     return { score: 40, rationale: `Non-STEM: ${countryData.optNonStemMonths}-month post-study work permit` };
   }
-  if (country === "US") {
-    return { score: 100, rationale: "STEM OPT: 36-month post-study work authorization in US" };
-  }
-  if (country === "Canada") {
-    return { score: 95, rationale: "STEM in Canada: 3-year PGWP — clear pathway to PR" };
-  }
-  if (country === "Germany" || country === "Ireland") {
-    return { score: 85, rationale: `STEM advantage in ${country}: strong employer sponsorship rates` };
-  }
+  if (country === "US") return { score: 100, rationale: "STEM OPT: 36-month post-study work authorization in US" };
+  if (country === "Canada") return { score: 95, rationale: "STEM in Canada: 3-year PGWP — clear pathway to PR" };
+  if (country === "Germany" || country === "Ireland") return { score: 85, rationale: `STEM advantage in ${country}: strong employer sponsorship rates` };
   return { score: 75, rationale: `STEM designation: ${countryData.optStemMonths}-month work authorization` };
 }
 
@@ -98,11 +93,7 @@ function degreeMultiplier(degree: string): number {
   switch (degree.toUpperCase()) {
     case "PHD": return 1.10;
     case "MBA": return 1.18;
-    case "MS":
-    case "M.SC":
-    case "MTECH":
-    case "MEng":
-    case "M.TECH": return 1.05;
+    case "MS": case "M.SC": case "MTECH": case "MENG": case "M.TECH": return 1.05;
     case "LLM": return 1.08;
     case "MFA": return 1.00;
     default: return 1.05;
@@ -134,21 +125,53 @@ function getCityMultiplier(country: string, city?: string): number {
   return cities[city] ?? cities["Other"] ?? 1.0;
 }
 
-// ─── EP Scorer ─────────────────────────────────────────────────────────────
+// ─── EP Scorer (with live API data) ────────────────────────────────────────
 
-export function computeEP(input: AssessmentInput): EPResult {
+export async function computeEP(input: AssessmentInput): Promise<EPResult> {
   const uniTierResult = getUniversityTierScore(input.destinationUniversity);
   const courseData = getCourseData(input.targetCourse);
   const countryData = getCountryData(input.destinationCountry);
   const tierData = getTierData(input.undergradTier);
 
+  // Live API: BLS growth data
+  const growthData = getOccupationGrowth(input.targetCourse);
+  const growthRate = growthData?.projectedGrowthPct ?? courseData.blsGrowth10yr;
+  const growthSource = growthData?.source ?? "BLS Employment Projections (static fallback)";
+
+  // Live API: O*NET bright outlook
+  let onetBonus = 0;
+  let onetNote = "";
+  if (input.destinationCountry === "US") {
+    try {
+      const onetData = await getOccupationDetails(input.targetCourse);
+      if (onetData?.brightOutlook) {
+        onetBonus = 5;
+        onetNote = " | O*NET Bright Outlook occupation (+5)";
+      }
+    } catch { /* O*NET unavailable, continue */ }
+  }
+
+  // Live API: College Scorecard completion rate (US only)
+  let completionBonus = 0;
+  let completionNote = "";
+  if (input.destinationCountry === "US") {
+    try {
+      const schoolData = await getSchoolEarnings(input.destinationUniversity);
+      if (schoolData?.completionRate) {
+        const cr = schoolData.completionRate;
+        completionBonus = cr >= 0.9 ? 5 : cr >= 0.7 ? 3 : 0;
+        if (completionBonus > 0) {
+          completionNote = ` | ${Math.round(cr * 100)}% completion rate (+${completionBonus})`;
+        }
+      }
+    } catch { /* Scorecard unavailable, continue */ }
+  }
+
   const cgpa = cgpaScore(input.undergradCgpa, tierData.cgpaBaseline);
-  const testResult = input.gmatScore
-    ? gmatScore(input.gmatScore)
-    : greScore(input.greScore);
+  const testResult = input.gmatScore ? gmatScoreFn(input.gmatScore) : greScoreFn(input.greScore);
   const caliber = Math.round((tierData.score * 0.5) + (cgpa * 0.35) + (testResult.score * 0.15));
 
-  const blsGrowth = blsGrowthScore(courseData.blsGrowth10yr);
+  const blsGrowth = blsGrowthScore(growthRate);
   const stem = stemScore(input.isStem, input.destinationCountry);
   const workExp = workExpScore(input.workExperienceYears);
   const countryEmployment = Math.round(countryData.gradEmploymentRate * 100);
@@ -157,18 +180,20 @@ export function computeEP(input: AssessmentInput): EPResult {
     {
       factor: "Destination University Tier",
       weight: 0.25,
-      rawScore: uniTierResult.score,
-      weightedScore: Math.round(uniTierResult.score * 0.25),
-      rationale: `${uniTierResult.label} — QS World Rankings`,
-      source: "QS World University Rankings 2024-25",
+      rawScore: Math.min(100, uniTierResult.score + completionBonus),
+      weightedScore: Math.round((uniTierResult.score + completionBonus) * 0.25),
+      rationale: `${uniTierResult.label} — QS World Rankings${completionNote}`,
+      source: completionNote
+        ? "QS World University Rankings 2024-25 + US College Scorecard API (live)"
+        : "QS World University Rankings 2024-25",
     },
     {
       factor: "Course Demand",
       weight: 0.20,
-      rawScore: blsGrowth.score,
-      weightedScore: Math.round(blsGrowth.score * 0.20),
-      rationale: blsGrowth.rationale,
-      source: "US Bureau of Labor Statistics Occupational Outlook 2024",
+      rawScore: Math.min(100, blsGrowth.score + onetBonus),
+      weightedScore: Math.round((blsGrowth.score + onetBonus) * 0.20),
+      rationale: blsGrowth.rationale + onetNote,
+      source: growthSource + (onetNote ? " + O*NET v30.2 (live)" : ""),
     },
     {
       factor: "Student Caliber",
@@ -184,12 +209,9 @@ export function computeEP(input: AssessmentInput): EPResult {
       rawScore: countryEmployment,
       weightedScore: Math.round(countryEmployment * 0.15),
       rationale: `${countryData.gradEmploymentRate * 100}% graduate employment rate in ${countryData.name}`,
-      source: countryData.name === "United Kingdom"
-        ? "HESA Graduate Outcomes Survey 2023"
-        : countryData.name === "Canada"
-        ? "Statistics Canada PCEIP 2023"
-        : countryData.name === "Australia"
-        ? "QILT Graduate Outcomes Survey 2024"
+      source: countryData.name === "United Kingdom" ? "HESA Graduate Outcomes Survey 2023"
+        : countryData.name === "Canada" ? "Statistics Canada PCEIP 2023"
+        : countryData.name === "Australia" ? "QILT Graduate Outcomes Survey 2024"
         : "OECD Education at a Glance 2024",
     },
     {
@@ -210,7 +232,7 @@ export function computeEP(input: AssessmentInput): EPResult {
     },
   ];
 
-  const totalScore = breakdown.reduce((sum, item) => sum + item.weightedScore, 0);
+  const totalScore = Math.min(100, breakdown.reduce((sum, item) => sum + item.weightedScore, 0));
   const { band, color } = getRiskBand(totalScore);
 
   const summaries: Record<string, string> = {
@@ -220,33 +242,94 @@ export function computeEP(input: AssessmentInput): EPResult {
     "Very High": `High employability risk. Multiple factors — institution rank, course demand, and/or academic profile — are below threshold benchmarks. Enhanced monitoring recommended.`,
   };
 
-  return {
-    score: totalScore,
-    riskBand: band,
-    riskColor: color,
-    breakdown,
-    summary: summaries[band],
-  };
+  return { score: totalScore, riskBand: band, riskColor: color, breakdown, summary: summaries[band] };
 }
 
-// ─── FIP Engine ────────────────────────────────────────────────────────────
+// ─── FIP Engine (with live API data) ───────────────────────────────────────
 
-export function computeFIP(input: AssessmentInput): FIPResult {
+export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
   const courseData = getCourseData(input.targetCourse);
   const countryData = getCountryData(input.destinationCountry);
   const uniTierResult = getUniversityTierScore(input.destinationUniversity);
 
-  const currencyKey = `${input.destinationCountry.toLowerCase()}MedianWage` as keyof typeof courseData;
-  const baseSalaryMap: Record<string, number> = {
-    US: courseData.usMedianWage,
-    UK: courseData.ukMedianWage,
-    Canada: courseData.caMedianWage,
-    Australia: courseData.auMedianWage,
-    Germany: courseData.deMedianWage,
-    France: courseData.frMedianWage,
-    Ireland: courseData.ieMedianWage,
-  };
-  const baseSalary = baseSalaryMap[input.destinationCountry] ?? courseData.usMedianWage;
+  // Get base salary from best available source
+  let baseSalary: number;
+  let baseSalarySource: string;
+
+  if (input.destinationCountry === "US") {
+    // Priority: 1) College Scorecard program-level → 2) H1B LCA → 3) BLS wages → 4) static fallback
+    let resolved = false;
+
+    // Try College Scorecard program-level earnings
+    try {
+      const programData = await getProgramEarnings(input.destinationUniversity, input.targetCourse, input.targetDegree);
+      if (programData?.medianEarnings4yr) {
+        baseSalary = programData.medianEarnings4yr;
+        baseSalarySource = programData.source;
+        resolved = true;
+      }
+    } catch { /* continue to next source */ }
+
+    // Try H1B LCA actual salaries
+    if (!resolved) {
+      const h1bData = getH1BSalary(input.targetCourse);
+      if (h1bData) {
+        baseSalary = h1bData.medianSalary;
+        baseSalarySource = h1bData.source;
+        resolved = true;
+      }
+    }
+
+    // Try BLS OES wages
+    if (!resolved) {
+      try {
+        const blsData = await getOccupationWages(input.targetCourse);
+        if (blsData?.annualMedianWage) {
+          baseSalary = blsData.annualMedianWage;
+          baseSalarySource = blsData.source;
+          resolved = true;
+        }
+      } catch { /* continue to fallback */ }
+    }
+
+    // Static fallback
+    if (!resolved!) {
+      baseSalary = courseData.usMedianWage;
+      baseSalarySource = "Static lookup table (fallback)";
+    }
+  } else {
+    // Non-US: use static data for now, label the source
+    const salaryMap: Record<string, number> = {
+      UK: courseData.ukMedianWage,
+      Canada: courseData.caMedianWage,
+      Australia: courseData.auMedianWage,
+      Germany: courseData.deMedianWage,
+      France: courseData.frMedianWage,
+      Ireland: courseData.ieMedianWage,
+    };
+    baseSalary = salaryMap[input.destinationCountry] ?? courseData.usMedianWage;
+
+    const sourceMap: Record<string, string> = {
+      UK: "HESA LEO Graduate Outcomes 2023 + ONS Labour Market Statistics",
+      Canada: "Statistics Canada Labour Force Survey 2024",
+      Australia: "QILT Graduate Outcomes Survey 2024 + ABS Labour Force",
+      Germany: "OECD Education at a Glance 2024 + Bundesagentur fur Arbeit",
+      France: "OECD Education at a Glance 2024 + INSEE Employment Survey",
+      Ireland: "CSO Ireland Labour Force Survey + IDA Ireland wage benchmarks",
+    };
+    baseSalarySource = sourceMap[input.destinationCountry] ?? "OECD Education at a Glance 2024";
+  }
+
+  // Live API: enhance with College Scorecard school-level earnings (US only)
+  let schoolEarningsNote = "";
+  if (input.destinationCountry === "US") {
+    try {
+      const schoolData = await getSchoolEarnings(input.destinationUniversity);
+      if (schoolData?.medianEarnings10yr) {
+        schoolEarningsNote = ` | School 10-yr median: $${schoolData.medianEarnings10yr.toLocaleString()} (College Scorecard)`;
+      }
+    } catch { /* continue without */ }
+  }
 
   const uniPremium = uniTierResult.tier === "T50" ? 1.22
     : uniTierResult.tier === "T100" ? 1.12
@@ -258,27 +341,28 @@ export function computeFIP(input: AssessmentInput): FIPResult {
   const cityMult = getCityMultiplier(input.destinationCountry, input.targetCity);
   const expPremiumFactor = 1 + (input.workExperienceYears * 0.04);
 
-  const year1 = Math.round(baseSalary * uniPremium * degreeMult * cityMult * expPremiumFactor);
+  const year1 = Math.round(baseSalary! * uniPremium * degreeMult * cityMult * expPremiumFactor);
   const year3 = Math.round(year1 * 1.15);
   const year5 = Math.round(year1 * 1.32);
 
   const exchangeRate = getExchangeRate(countryData.currency);
 
+  // Build H1B context for breakdown if available
+  let h1bNote = "";
+  if (input.destinationCountry === "US") {
+    const h1bData = getH1BSalary(input.targetCourse);
+    if (h1bData) {
+      h1bNote = ` | H1B LCA range: $${h1bData.p25Salary.toLocaleString()}–$${h1bData.p75Salary.toLocaleString()} (${h1bData.sampleSize.toLocaleString()} certified applications)`;
+    }
+  }
+
   const breakdown: FIPBreakdownItem[] = [
     {
       component: "Base Salary",
-      value: baseSalary,
+      value: baseSalary!,
       type: "base",
-      rationale: `${input.targetCourse} median salary in ${countryData.name}`,
-      source: input.destinationCountry === "US"
-        ? "BLS Occupational Employment Statistics 2024 + College Scorecard"
-        : input.destinationCountry === "UK"
-        ? "HESA LEO Graduate Outcomes 2023"
-        : input.destinationCountry === "Canada"
-        ? "Statistics Canada Labour Force Survey 2024"
-        : input.destinationCountry === "Australia"
-        ? "QILT Graduate Outcomes Survey 2024"
-        : "OECD Employment Outlook 2024",
+      rationale: `${input.targetCourse} median salary in ${countryData.name}${schoolEarningsNote}${h1bNote}`,
+      source: baseSalarySource!,
     },
     {
       component: "University Premium",
@@ -325,7 +409,7 @@ export function computeFIP(input: AssessmentInput): FIPResult {
   ];
 
   const dataSourceMap: Record<string, string> = {
-    US: "BLS OES 2024 | College Scorecard | H1B LCA Disclosures",
+    US: "BLS OES 2024 | College Scorecard API (live) | H1B LCA Disclosures FY2025",
     UK: "HESA LEO Graduate Outcomes 2023 | ONS Labour Market Statistics",
     Canada: "Statistics Canada LFS 2024 | PCEIP",
     Australia: "QILT GOS 2024 | ABS Labour Force Survey",
