@@ -1,0 +1,145 @@
+{
+  "_comment": "Country-level data for scoring. Sources: HESA 2023, Stats Canada, BLS, OECD Education at a Glance 2024, Australia QILT 2024.",
+  "countries": {
+    "US": {
+      "name": "United States",
+      "currency": "USD",
+      "flag": "🇺🇸",
+      "gradEmploymentRate": 0.88,
+      "avgMonthsToEmployment": 4.5,
+      "optStemMonths": 36,
+      "optNonStemMonths": 12,
+      "visaSponsorship": 0.72,
+      "countryScore": 90,
+      "cities": {
+        "New York": 1.35,
+        "San Francisco": 1.45,
+        "Seattle": 1.30,
+        "Boston": 1.25,
+        "Los Angeles": 1.20,
+        "Chicago": 1.10,
+        "Austin": 1.10,
+        "Washington DC": 1.20,
+        "Atlanta": 1.05,
+        "Dallas": 1.05,
+        "Other": 1.00
+      }
+    },
+    "UK": {
+      "name": "United Kingdom",
+      "currency": "GBP",
+      "flag": "🇬🇧",
+      "gradEmploymentRate": 0.82,
+      "avgMonthsToEmployment": 5.5,
+      "optStemMonths": 24,
+      "optNonStemMonths": 24,
+      "visaSponsorship": 0.60,
+      "countryScore": 80,
+      "cities": {
+        "London": 1.30,
+        "Manchester": 1.05,
+        "Edinburgh": 1.05,
+        "Birmingham": 1.00,
+        "Bristol": 1.05,
+        "Leeds": 0.95,
+        "Other": 0.90
+      }
+    },
+    "Canada": {
+      "name": "Canada",
+      "currency": "CAD",
+      "flag": "🇨🇦",
+      "gradEmploymentRate": 0.85,
+      "avgMonthsToEmployment": 5.0,
+      "optStemMonths": 36,
+      "optNonStemMonths": 36,
+      "visaSponsorship": 0.80,
+      "countryScore": 88,
+      "cities": {
+        "Toronto": 1.25,
+        "Vancouver": 1.20,
+        "Montreal": 1.05,
+        "Calgary": 1.10,
+        "Ottawa": 1.10,
+        "Waterloo": 1.10,
+        "Other": 0.95
+      }
+    },
+    "Australia": {
+      "name": "Australia",
+      "currency": "AUD",
+      "flag": "🇦🇺",
+      "gradEmploymentRate": 0.80,
+      "avgMonthsToEmployment": 5.5,
+      "optStemMonths": 24,
+      "optNonStemMonths": 24,
+      "visaSponsorship": 0.65,
+      "countryScore": 78,
+      "cities": {
+        "Sydney": 1.20,
+        "Melbourne": 1.15,
+        "Brisbane": 1.05,
+        "Perth": 1.05,
+        "Adelaide": 0.95,
+        "Other": 0.90
+      }
+    },
+    "Germany": {
+      "name": "Germany",
+      "currency": "EUR",
+      "flag": "🇩🇪",
+      "gradEmploymentRate": 0.87,
+      "avgMonthsToEmployment": 4.0,
+      "optStemMonths": 18,
+      "optNonStemMonths": 18,
+      "visaSponsorship": 0.70,
+      "countryScore": 82,
+      "cities": {
+        "Munich": 1.25,
+        "Berlin": 1.15,
+        "Frankfurt": 1.20,
+        "Hamburg": 1.10,
+        "Stuttgart": 1.15,
+        "Cologne": 1.05,
+        "Other": 0.95
+      }
+    },
+    "France": {
+      "name": "France",
+      "currency": "EUR",
+      "flag": "🇫🇷",
+      "gradEmploymentRate": 0.82,
+      "avgMonthsToEmployment": 6.0,
+      "optStemMonths": 12,
+      "optNonStemMonths": 12,
+      "visaSponsorship": 0.55,
+      "countryScore": 72,
+      "cities": {
+        "Paris": 1.25,
+        "Lyon": 1.05,
+        "Marseille": 0.95,
+        "Toulouse": 1.00,
+        "Bordeaux": 0.95,
+        "Other": 0.90
+      }
+    },
+    "Ireland": {
+      "name": "Ireland",
+      "currency": "EUR",
+      "flag": "🇮🇪",
+      "gradEmploymentRate": 0.88,
+      "avgMonthsToEmployment": 4.5,
+      "optStemMonths": 24,
+      "optNonStemMonths": 24,
+      "visaSponsorship": 0.78,
+      "countryScore": 85,
+      "cities": {
+        "Dublin": 1.30,
+        "Cork": 1.05,
+        "Galway": 0.95,
+        "Limerick": 0.95,
+        "Other": 0.90
+      }
+    }
+  }
+}

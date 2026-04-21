@@ -1,0 +1,65 @@
+{
+  "_comment": "Indian undergraduate institution tiers and their caliber scores for EP/FIP models.",
+  "tiers": {
+    "IIT": {
+      "label": "IIT (Indian Institutes of Technology)",
+      "score": 100,
+      "cgpaBaseline": 8.0,
+      "examples": ["IIT Bombay", "IIT Delhi", "IIT Madras", "IIT Kanpur", "IIT Kharagpur", "IIT Roorkee"]
+    },
+    "IIM": {
+      "label": "IIM (Indian Institutes of Management) – UG programs",
+      "score": 95,
+      "cgpaBaseline": 8.0,
+      "examples": ["IIM Ahmedabad", "IIM Bangalore", "IIM Calcutta"]
+    },
+    "BITS": {
+      "label": "BITS Pilani / BITS Goa / BITS Hyderabad",
+      "score": 90,
+      "cgpaBaseline": 7.5,
+      "examples": ["BITS Pilani", "BITS Goa", "BITS Hyderabad"]
+    },
+    "NIT": {
+      "label": "NIT (National Institutes of Technology)",
+      "score": 80,
+      "cgpaBaseline": 7.5,
+      "examples": ["NIT Trichy", "NIT Warangal", "NIT Surathkal", "NIT Calicut"]
+    },
+    "IIIT": {
+      "label": "IIIT (Indian Institutes of Information Technology)",
+      "score": 78,
+      "cgpaBaseline": 7.5,
+      "examples": ["IIIT Hyderabad", "IIIT Delhi", "IIIT Bangalore"]
+    },
+    "DELHI_UNIV": {
+      "label": "Delhi University top colleges",
+      "score": 72,
+      "cgpaBaseline": 7.0,
+      "examples": ["SRCC", "St. Stephen's", "Miranda House", "Hindu College", "LSR"]
+    },
+    "CENTRAL_UNIV": {
+      "label": "Central University / Top State University",
+      "score": 65,
+      "cgpaBaseline": 7.0,
+      "examples": ["BHU", "Hyderabad Central", "JNU", "Jadavpur University"]
+    },
+    "TIER2_PRIVATE": {
+      "label": "Tier-2 Private (Manipal, VIT, SRM, Amity, etc.)",
+      "score": 55,
+      "cgpaBaseline": 6.5,
+      "examples": ["Manipal", "VIT", "SRM", "Amity", "Lovely Professional"]
+    },
+    "STATE_UNIV": {
+      "label": "State University / Deemed University",
+      "score": 45,
+      "cgpaBaseline": 6.0,
+      "examples": ["Mumbai University", "Pune University", "Anna University"]
+    },
+    "OTHERS": {
+      "label": "Other / Unknown",
+      "score": 35,
+      "cgpaBaseline": 6.0,
+      "examples": []
+    }
+  }
+}
