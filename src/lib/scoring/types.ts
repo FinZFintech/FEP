@@ -25,6 +25,7 @@ export interface EPBreakdownItem {
   weightedScore: number;
   rationale: string;
   source: string;
+  isLive?: boolean;
 }
 
 export interface FIPBreakdownItem {
@@ -33,6 +34,7 @@ export interface FIPBreakdownItem {
   type: "base" | "multiplier" | "adjustment";
   rationale: string;
   source: string;
+  isLive?: boolean;
 }
 
 export interface EPResult {
