@@ -3,8 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Account {
@@ -87,7 +88,7 @@ model Assessment {
 
   epScore     Float
   epRiskBand  String
-  epBreakdown String
+  epBreakdown String  @db.Text
 
   fipYear1Local Float
   fipYear3Local Float
@@ -96,9 +97,9 @@ model Assessment {
   fipYear3Inr   Float
   fipYear5Inr   Float
   fipCurrency   String
-  fipBreakdown  String
+  fipBreakdown  String  @db.Text
 
-  notes      String?
+  notes      String?  @db.Text
   batchJobId String?
   batchJob   BatchJob? @relation(fields: [batchJobId], references: [id])
 }
