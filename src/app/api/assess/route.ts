@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { computeEP, computeFIP } from "@/lib/scoring/engine";
+import { computeEP, computeFIP, computeLTI } from "@/lib/scoring/engine";
 import type { AssessmentInput } from "@/lib/scoring/types";
 
 export async function POST(req: NextRequest) {
@@ -13,6 +13,10 @@ export async function POST(req: NextRequest) {
   const body = await req.json() as AssessmentInput & { notes?: string };
 
   const [ep, fip] = await Promise.all([computeEP(body), computeFIP(body)]);
+
+  const lti = body.loanAmountInr
+    ? computeLTI(body.loanAmountInr, fip.year1Inr, fip.year3Inr)
+    : undefined;
 
   const assessment = await prisma.assessment.create({
     data: {
@@ -49,5 +53,5 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  return NextResponse.json({ id: assessment.id, ep, fip });
+  return NextResponse.json({ id: assessment.id, ep, fip, lti });
 }

@@ -1,5 +1,6 @@
-import type { AssessmentInput, EPResult, FIPResult, EPBreakdownItem, FIPBreakdownItem } from "./types";
+import type { AssessmentInput, EPResult, FIPResult, EPBreakdownItem, FIPBreakdownItem, LoanToIncomeResult } from "./types";
 import { getSchoolEarnings, getProgramEarnings, getOccupationWages, getOccupationGrowth, getH1BSalary, getOccupationDetails } from "../apis";
+import { getCountryEarnings } from "../apis/country-earnings";
 
 import universitiesData from "./lookups/universities.json";
 import coursesData from "./lookups/courses.json";
@@ -298,26 +299,23 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
       baseSalarySource = "Static lookup table (fallback)";
     }
   } else {
-    // Non-US: use static data for now, label the source
-    const salaryMap: Record<string, number> = {
-      UK: courseData.ukMedianWage,
-      Canada: courseData.caMedianWage,
-      Australia: courseData.auMedianWage,
-      Germany: courseData.deMedianWage,
-      France: courseData.frMedianWage,
-      Ireland: courseData.ieMedianWage,
-    };
-    baseSalary = salaryMap[input.destinationCountry] ?? courseData.usMedianWage;
-
-    const sourceMap: Record<string, string> = {
-      UK: "HESA LEO Graduate Outcomes 2023 + ONS Labour Market Statistics",
-      Canada: "Statistics Canada Labour Force Survey 2024",
-      Australia: "QILT Graduate Outcomes Survey 2024 + ABS Labour Force",
-      Germany: "OECD Education at a Glance 2024 + Bundesagentur fur Arbeit",
-      France: "OECD Education at a Glance 2024 + INSEE Employment Survey",
-      Ireland: "CSO Ireland Labour Force Survey + IDA Ireland wage benchmarks",
-    };
-    baseSalarySource = sourceMap[input.destinationCountry] ?? "OECD Education at a Glance 2024";
+    // Non-US: use country-specific graduate earnings data
+    const countryEarnings = getCountryEarnings(input.destinationCountry, input.targetCourse);
+    if (countryEarnings) {
+      baseSalary = countryEarnings.median1yr;
+      baseSalarySource = countryEarnings.source;
+    } else {
+      const salaryMap: Record<string, number> = {
+        UK: courseData.ukMedianWage,
+        Canada: courseData.caMedianWage,
+        Australia: courseData.auMedianWage,
+        Germany: courseData.deMedianWage,
+        France: courseData.frMedianWage,
+        Ireland: courseData.ieMedianWage,
+      };
+      baseSalary = salaryMap[input.destinationCountry] ?? courseData.usMedianWage;
+      baseSalarySource = "Static lookup table (fallback)";
+    }
   }
 
   // Live API: enhance with College Scorecard school-level earnings (US only)
@@ -429,4 +427,42 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
     breakdown,
     dataSource: dataSourceMap[input.destinationCountry] ?? "OECD Education at a Glance 2024",
   };
+}
+
+// ─── Loan-to-Income Analysis ───────────────────────────────────────────────
+
+export function computeLTI(loanAmountInr: number, fipYear1Inr: number, fipYear3Inr: number): LoanToIncomeResult {
+  const ratio1yr = loanAmountInr / fipYear1Inr;
+  const ratio3yr = loanAmountInr / fipYear3Inr;
+
+  // 10-year loan at ~10% interest
+  const monthlyRate = 0.10 / 12;
+  const months = 120;
+  const monthlyEmi = Math.round(loanAmountInr * monthlyRate * Math.pow(1 + monthlyRate, months) / (Math.pow(1 + monthlyRate, months) - 1));
+  const monthlyIncome = fipYear1Inr / 12;
+  const emiToIncomeRatio = monthlyEmi / monthlyIncome;
+
+  let band: LoanToIncomeResult["band"];
+  let bandColor: string;
+  let summary: string;
+
+  if (ratio1yr <= 1.5 && emiToIncomeRatio <= 0.25) {
+    band = "Green";
+    bandColor = "#16a34a";
+    summary = `Loan is ${ratio1yr.toFixed(1)}× Year 1 income. EMI/Income ratio of ${(emiToIncomeRatio * 100).toFixed(0)}% is well within comfort zone. Low repayment risk.`;
+  } else if (ratio1yr <= 2.5 && emiToIncomeRatio <= 0.40) {
+    band = "Yellow";
+    bandColor = "#ca8a04";
+    summary = `Loan is ${ratio1yr.toFixed(1)}× Year 1 income. EMI/Income ratio of ${(emiToIncomeRatio * 100).toFixed(0)}% is manageable but leaves limited buffer. Monitor for income delays.`;
+  } else if (ratio1yr <= 3.5 && emiToIncomeRatio <= 0.55) {
+    band = "Orange";
+    bandColor = "#ea580c";
+    summary = `Loan is ${ratio1yr.toFixed(1)}× Year 1 income. EMI/Income ratio of ${(emiToIncomeRatio * 100).toFixed(0)}% is stretched. Repayment depends heavily on timely employment and income growth.`;
+  } else {
+    band = "Red";
+    bandColor = "#dc2626";
+    summary = `Loan is ${ratio1yr.toFixed(1)}× Year 1 income. EMI/Income ratio of ${(emiToIncomeRatio * 100).toFixed(0)}% exceeds comfort threshold. High repayment risk — consider reducing loan amount or requiring co-borrower.`;
+  }
+
+  return { loanAmountInr, fipYear1Inr, fipYear3Inr, ratio1yr, ratio3yr, band, bandColor, summary, monthlyEmi, emiToIncomeRatio };
 }
