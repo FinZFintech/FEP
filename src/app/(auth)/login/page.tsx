@@ -30,7 +30,7 @@ export default function LoginPage() {
 
           <div className="mb-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
             <p className="text-sm text-blue-800 text-center leading-relaxed">
-              Sign in with your <strong>FinZ Finance Google account</strong> to access
+              Sign in with your <strong>@finz.finance</strong> Google account to access
               the credit assessment tools.
             </p>
           </div>
