@@ -27,32 +27,62 @@ const COURSES = [
   "Public Policy", "Software Engineering", "Supply Chain Management",
 ];
 
+export interface AssessmentFormInitialData {
+  studentName?: string;
+  undergradInstitution?: string;
+  undergradTier?: string;
+  undergradDegree?: string;
+  undergradMajor?: string;
+  undergradCgpa?: number;
+  greScore?: number | null;
+  gmatScore?: number | null;
+  workExperienceYears?: number;
+  destinationCountry?: string;
+  destinationUniversity?: string;
+  targetDegree?: string;
+  targetCourse?: string;
+  isStem?: boolean;
+  programDurationMonths?: number;
+  targetCity?: string | null;
+  loanAmountInr?: number | null;
+  notes?: string | null;
+}
+
 interface FormProps {
   onSubmit: (data: Record<string, unknown>) => void;
   loading: boolean;
+  initialData?: AssessmentFormInitialData;
+  submitLabel?: string;
+  submittingLabel?: string;
 }
 
-export function AssessmentForm({ onSubmit, loading }: FormProps) {
+export function AssessmentForm({
+  onSubmit,
+  loading,
+  initialData,
+  submitLabel = "Run Assessment",
+  submittingLabel = "Computing...",
+}: FormProps) {
   const [form, setForm] = useState({
-    studentName: "",
-    undergradInstitution: "",
-    undergradTier: "NIT",
-    undergradDegree: "B.Tech",
-    undergradMajor: "Computer Science",
-    undergradCgpa: "",
+    studentName: initialData?.studentName ?? "",
+    undergradInstitution: initialData?.undergradInstitution ?? "",
+    undergradTier: initialData?.undergradTier ?? "NIT",
+    undergradDegree: initialData?.undergradDegree ?? "B.Tech",
+    undergradMajor: initialData?.undergradMajor ?? "Computer Science",
+    undergradCgpa: initialData?.undergradCgpa != null ? String(initialData.undergradCgpa) : "",
     cgpaScale: "10",
-    greScore: "",
-    gmatScore: "",
-    workExperienceYears: "0",
-    destinationCountry: "US",
-    destinationUniversity: "",
-    targetDegree: "MS",
-    targetCourse: "Computer Science",
-    isStem: true,
-    programDurationMonths: "24",
-    targetCity: "",
-    loanAmountInr: "",
-    notes: "",
+    greScore: initialData?.greScore != null ? String(initialData.greScore) : "",
+    gmatScore: initialData?.gmatScore != null ? String(initialData.gmatScore) : "",
+    workExperienceYears: initialData?.workExperienceYears != null ? String(initialData.workExperienceYears) : "0",
+    destinationCountry: initialData?.destinationCountry ?? "US",
+    destinationUniversity: initialData?.destinationUniversity ?? "",
+    targetDegree: initialData?.targetDegree ?? "MS",
+    targetCourse: initialData?.targetCourse ?? "Computer Science",
+    isStem: initialData?.isStem ?? true,
+    programDurationMonths: initialData?.programDurationMonths != null ? String(initialData.programDurationMonths) : "24",
+    targetCity: initialData?.targetCity ?? "",
+    loanAmountInr: initialData?.loanAmountInr != null ? String(initialData.loanAmountInr) : "",
+    notes: initialData?.notes ?? "",
   });
 
   const set = (key: string, val: unknown) => setForm((f) => ({ ...f, [key]: val }));
@@ -241,14 +271,14 @@ export function AssessmentForm({ onSubmit, loading }: FormProps) {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
               </svg>
-              Computing...
+              {submittingLabel}
             </>
           ) : (
             <>
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
-              Run Assessment
+              {submitLabel}
             </>
           )}
         </button>
