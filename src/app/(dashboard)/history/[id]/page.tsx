@@ -218,6 +218,109 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
+      {/* Loan-to-Income Analysis (computed from stored data) */}
+      {data.loanAmountInr && data.loanAmountInr > 0 && (() => {
+        const loanAmt = data.loanAmountInr!;
+        const ratio1yr = loanAmt / data.fipYear1Inr;
+        const monthlyRate = 0.10 / 12;
+        const months = 120;
+        const emi = Math.round(loanAmt * monthlyRate * Math.pow(1 + monthlyRate, months) / (Math.pow(1 + monthlyRate, months) - 1));
+        const emiRatio = emi / (data.fipYear1Inr / 12);
+        const band = ratio1yr <= 1.5 && emiRatio <= 0.25 ? "Green"
+          : ratio1yr <= 2.5 && emiRatio <= 0.40 ? "Yellow"
+          : ratio1yr <= 3.5 && emiRatio <= 0.55 ? "Orange" : "Red";
+        const bandColor = band === "Green" ? "#16a34a" : band === "Yellow" ? "#ca8a04" : band === "Orange" ? "#ea580c" : "#dc2626";
+
+        return (
+          <div className="bg-white rounded-2xl border border-slate-200 p-6">
+            <div className="flex items-start justify-between mb-3">
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Loan-to-Income Analysis</p>
+                <p className="text-sm text-slate-600 mt-0.5">Repayment capacity assessment</p>
+              </div>
+              <div className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold border"
+                style={{ color: bandColor, borderColor: bandColor, backgroundColor: `${bandColor}10` }}>
+                {band}
+              </div>
+            </div>
+            <div className="grid grid-cols-4 gap-4">
+              <div className="bg-slate-50 rounded-lg p-3 text-center">
+                <p className="text-xs text-slate-500">Loan Amount</p>
+                <p className="text-sm font-bold text-slate-900">{formatInr(loanAmt)}</p>
+              </div>
+              <div className="bg-slate-50 rounded-lg p-3 text-center">
+                <p className="text-xs text-slate-500">Loan / Year 1</p>
+                <p className="text-sm font-bold" style={{ color: bandColor }}>{ratio1yr.toFixed(1)}x</p>
+              </div>
+              <div className="bg-slate-50 rounded-lg p-3 text-center">
+                <p className="text-xs text-slate-500">Monthly EMI</p>
+                <p className="text-sm font-bold text-slate-900">{formatInr(emi)}</p>
+              </div>
+              <div className="bg-slate-50 rounded-lg p-3 text-center">
+                <p className="text-xs text-slate-500">EMI / Income</p>
+                <p className="text-sm font-bold" style={{ color: bandColor }}>{(emiRatio * 100).toFixed(0)}%</p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Return-to-Home Scenario (computed from stored data, assumes Indian nationality) */}
+      {(() => {
+        const returnMultiplier = 0.28;
+        const returnYear1 = Math.round(data.fipYear1Inr * returnMultiplier);
+        const returnYear3 = Math.round(returnYear1 * 1.20);
+        const returnYear5 = Math.round(returnYear1 * 1.45);
+
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white rounded-2xl border border-slate-200 p-6">
+              <div className="mb-4">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Return-to-Home Scenario</p>
+                <p className="text-sm text-slate-600 mt-0.5">If student returns to India</p>
+              </div>
+              <div className="space-y-3">
+                {[
+                  { label: "Year 1", inr: returnYear1 },
+                  { label: "Year 3", inr: returnYear3 },
+                  { label: "Year 5", inr: returnYear5 },
+                ].map(({ label, inr }) => (
+                  <div key={label} className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-slate-500 w-12">{label}</span>
+                    <div className="flex-1 mx-3 bg-slate-100 rounded-full h-2">
+                      <div className="bg-orange-400 h-2 rounded-full"
+                        style={{ width: `${Math.min(100, (inr / returnYear5) * 100)}%` }} />
+                    </div>
+                    <p className="text-sm font-semibold text-slate-900">{formatInr(inr)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-slate-200 p-6">
+              <div className="mb-4">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Income Comparison</p>
+                <p className="text-sm text-slate-600 mt-0.5">Stay abroad vs return to India</p>
+              </div>
+              <div className="space-y-3">
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Year 1 (Abroad)</span>
+                  <span className="font-semibold text-slate-900">{formatInr(data.fipYear1Inr)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-slate-500">Year 1 (India)</span>
+                  <span className="font-semibold text-orange-600">{formatInr(returnYear1)}</span>
+                </div>
+                <div className="flex justify-between text-sm border-t border-slate-100 pt-2">
+                  <span className="text-slate-500">Difference</span>
+                  <span className="font-semibold text-red-600">-{Math.round((1 - returnMultiplier) * 100)}%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
       <div className="bg-white rounded-2xl border border-slate-200">
         <div className="flex border-b border-slate-200">
           {(["overview", "ep", "fip"] as const).map((tab) => (
