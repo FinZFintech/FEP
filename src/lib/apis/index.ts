@@ -28,5 +28,8 @@ export type { AbsGrowthData } from "./abs";
 export { getNomisEarnings } from "./nomis";
 export type { NomisEarningsData } from "./nomis";
 
+export { getCensusGradMultiplier, CENSUS_SUPPORTED_CITIES } from "./census";
+export type { CensusMultiplierResult } from "./census";
+
 export { getOccupationCodes, OCCUPATION_CROSSWALK } from "./crosswalks/occupations";
 export type { OccupationCodes } from "./crosswalks/occupations";
