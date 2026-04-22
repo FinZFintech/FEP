@@ -4,6 +4,7 @@ import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { formatCurrency, formatInr, getRiskBandColor } from "@/lib/utils";
 import type { EPBreakdownItem, FIPBreakdownItem } from "@/lib/scoring/types";
+import { DataSourceLabel, DataSourceLegend } from "@/components/ui/data-source-label";
 
 interface AssessmentDetail {
   id: string;
@@ -324,6 +325,7 @@ function EPBreakdownTab({ breakdown }: { breakdown: EPBreakdownItem[] }) {
   }
   return (
     <div className="space-y-4">
+      <DataSourceLegend />
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left border-b border-slate-200">
@@ -339,7 +341,7 @@ function EPBreakdownTab({ breakdown }: { breakdown: EPBreakdownItem[] }) {
               <td className="py-3">
                 <p className="font-medium text-slate-900">{item.factor}</p>
                 <p className="text-xs text-slate-400 mt-0.5">{item.rationale}</p>
-                <p className="text-xs text-blue-500 mt-0.5 italic">{item.source}</p>
+                <DataSourceLabel source={item.source} isLive={item.isLive} />
               </td>
               <td className="py-3 text-center text-slate-600">{(item.weight * 100).toFixed(0)}%</td>
               <td className="py-3 text-center">
@@ -409,6 +411,8 @@ function FIPBreakdownTab({
       {breakdown.length === 0 ? (
         <p className="text-sm text-slate-500">No breakdown data available for this assessment.</p>
       ) : (
+        <>
+        <DataSourceLegend />
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left border-b border-slate-200">
@@ -422,7 +426,7 @@ function FIPBreakdownTab({
                 <td className="py-3">
                   <p className="font-medium text-slate-900">{item.component}</p>
                   <p className="text-xs text-slate-400 mt-0.5">{item.rationale}</p>
-                  <p className="text-xs text-blue-500 mt-0.5 italic">{item.source}</p>
+                  <DataSourceLabel source={item.source} isLive={item.isLive} />
                 </td>
                 <td className="py-3 text-right font-semibold text-slate-900">
                   {item.type === "base" ? formatCurrency(item.value, currency) : `× ${item.value.toFixed(2)}`}
@@ -431,6 +435,7 @@ function FIPBreakdownTab({
             ))}
           </tbody>
         </table>
+        </>
       )}
     </div>
   );

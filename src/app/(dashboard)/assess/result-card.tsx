@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { formatCurrency, formatInr, getRiskBandColor } from "@/lib/utils";
 import type { EPResult, FIPResult, EPBreakdownItem, FIPBreakdownItem, LoanToIncomeResult } from "@/lib/scoring/types";
+import { DataSourceLabel, DataSourceLegend } from "@/components/ui/data-source-label";
 
 interface ResultCardProps {
   result: { id: string; ep: EPResult; fip: FIPResult; lti?: LoanToIncomeResult };
@@ -248,8 +249,11 @@ function OverviewTab({ ep, fip, currency, formData }: { ep: EPResult; fip: FIPRe
           ))}
         </dl>
       </div>
-      <div className="md:col-span-2 p-4 bg-slate-50 rounded-xl text-xs text-slate-500">
-        <strong>Data Sources:</strong> {fip.dataSource}
+      <div className="md:col-span-2 space-y-2">
+        <DataSourceLegend />
+        <div className="p-4 bg-slate-50 rounded-xl text-xs text-slate-500">
+          <strong>Data Sources:</strong> {fip.dataSource}
+        </div>
       </div>
     </div>
   );
@@ -259,6 +263,7 @@ function EPBreakdownTab({ breakdown, summary }: { breakdown: EPBreakdownItem[]; 
   return (
     <div className="space-y-4">
       <p className="text-sm text-slate-600 bg-slate-50 rounded-xl p-4">{summary}</p>
+      <DataSourceLegend />
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left border-b border-slate-200">
@@ -274,7 +279,7 @@ function EPBreakdownTab({ breakdown, summary }: { breakdown: EPBreakdownItem[]; 
               <td className="py-3">
                 <p className="font-medium text-slate-900">{item.factor}</p>
                 <p className="text-xs text-slate-400 mt-0.5">{item.rationale}</p>
-                <p className="text-xs text-blue-500 mt-0.5 italic">{item.source}</p>
+                <DataSourceLabel source={item.source} isLive={item.isLive} />
               </td>
               <td className="py-3 text-center text-slate-600">{(item.weight * 100).toFixed(0)}%</td>
               <td className="py-3 text-center">
@@ -304,6 +309,7 @@ function EPBreakdownTab({ breakdown, summary }: { breakdown: EPBreakdownItem[]; 
 function FIPBreakdownTab({ breakdown, currency, fip }: { breakdown: FIPBreakdownItem[]; currency: string; fip: FIPResult }) {
   return (
     <div className="space-y-4">
+      <DataSourceLegend />
       <div className="grid grid-cols-3 gap-4 text-center">
         {[
           { label: "Year 1", local: fip.year1Local, inr: fip.year1Inr },
@@ -331,7 +337,7 @@ function FIPBreakdownTab({ breakdown, currency, fip }: { breakdown: FIPBreakdown
               <td className="py-3">
                 <p className="font-medium text-slate-900">{item.component}</p>
                 <p className="text-xs text-slate-400 mt-0.5">{item.rationale}</p>
-                <p className="text-xs text-blue-500 mt-0.5 italic">{item.source}</p>
+                <DataSourceLabel source={item.source} isLive={item.isLive} />
               </td>
               <td className="py-3 text-right font-semibold text-slate-900">
                 {item.type === "base"
