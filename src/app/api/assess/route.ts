@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { computeEP, computeFIP, computeLTI } from "@/lib/scoring/engine";
+import { METHODOLOGY_VERSION } from "@/lib/scoring/methodology";
 import type { AssessmentInput } from "@/lib/scoring/types";
 
 export async function POST(req: NextRequest) {
@@ -53,5 +54,5 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  return NextResponse.json({ id: assessment.id, ep, fip, lti });
+  return NextResponse.json({ id: assessment.id, ep, fip, lti, methodologyVersion: METHODOLOGY_VERSION });
 }

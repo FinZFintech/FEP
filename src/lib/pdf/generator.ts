@@ -3,7 +3,7 @@ import type { EPResult, FIPResult } from "@/lib/scoring/types";
 import { formatInr } from "@/lib/utils";
 
 interface GeneratePDFArgs {
-  result: { id: string; ep: EPResult; fip: FIPResult };
+  result: { id: string; ep: EPResult; fip: FIPResult; methodologyVersion?: string };
   formData: Record<string, unknown>;
 }
 
@@ -12,7 +12,7 @@ function formatCurrencySimple(amount: number, currency: string): string {
 }
 
 export function generatePDF({ result, formData }: GeneratePDFArgs) {
-  const { ep, fip } = result;
+  const { ep, fip, methodologyVersion } = result;
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
 
   const W = 210;
@@ -214,6 +214,9 @@ export function generatePDF({ result, formData }: GeneratePDFArgs) {
   doc.setFont("helvetica", "normal");
   doc.text("Data Sources: " + fip.dataSource, margin, y);
   doc.text("Confidential — FinZ Finance Credit Underwriting. For internal use only.", margin, y + 4);
+  if (methodologyVersion) {
+    doc.text(`Methodology v${methodologyVersion}`, margin, y + 8);
+  }
   doc.text(`Page 1`, W - margin, y, { align: "right" });
 
   doc.save(`FinZ-Assessment-${formData.studentName as string}-${new Date().toISOString().slice(0, 10)}.pdf`);

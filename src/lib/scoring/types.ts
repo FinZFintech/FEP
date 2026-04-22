@@ -21,6 +21,13 @@ export interface AssessmentInput {
 
 export type DataKind = "live" | "snapshot" | "heuristic";
 
+export interface ConfidenceRange {
+  p25: number;
+  p75: number;
+  sampleSize?: number;
+  unit?: string;
+}
+
 export interface EPBreakdownItem {
   factor: string;
   weight: number;
@@ -30,6 +37,8 @@ export interface EPBreakdownItem {
   source: string;
   dataKind?: DataKind;
   vintage?: string;
+  /** ISO timestamp of the live fetch that produced this row. Absent for snapshot/heuristic. */
+  fetchedAt?: string;
   isLive?: boolean;
 }
 
@@ -41,6 +50,10 @@ export interface FIPBreakdownItem {
   source: string;
   dataKind?: DataKind;
   vintage?: string;
+  /** ISO timestamp of the live fetch that produced this row. */
+  fetchedAt?: string;
+  /** Optional P25/P75 band for the underlying distribution (e.g. BLS OES / H1B LCA). */
+  confidence?: ConfidenceRange;
   isLive?: boolean;
 }
 
@@ -60,6 +73,18 @@ export interface FIPResult {
   year1Inr: number;
   year3Inr: number;
   year5Inr: number;
+  /** P25/P75 on the Year-1 base salary, when the source publishes percentiles. */
+  year1LocalConfidence?: ConfidenceRange;
+  year1InrConfidence?: ConfidenceRange;
+  /** FX rate provenance so INR numbers can carry their own tag. */
+  fx?: {
+    currency: string;
+    inrPerUnit: number;
+    source: string;
+    dataKind: DataKind;
+    vintage?: string;
+    fetchedAt?: string;
+  };
   returnScenario?: {
     year1Inr: number;
     year3Inr: number;
@@ -98,4 +123,5 @@ export interface AssessmentResult {
   lti?: LoanToIncomeResult;
   input: AssessmentInput;
   computedAt: string;
+  methodologyVersion?: string;
 }
