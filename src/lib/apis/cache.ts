@@ -1,5 +1,3 @@
-import { prisma } from "@/lib/db";
-
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 const memoryCache = new Map<string, { data: unknown; expiresAt: number }>();
