@@ -116,7 +116,7 @@ export function ResultCard({ result, formData, onNewAssessment }: ResultCardProp
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
           <div className="mb-4">
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Future Income Predictor</p>
-            <p className="text-sm text-slate-600 mt-0.5">Expected annual salary trajectory</p>
+            <p className="text-sm text-slate-600 mt-0.5">Expected annual salary trajectory (stay abroad)</p>
           </div>
           <div className="space-y-3">
             {[
@@ -141,6 +141,72 @@ export function ResultCard({ result, formData, onNewAssessment }: ResultCardProp
           </div>
         </div>
       </div>
+
+      {/* Return Scenario + Visa Info */}
+      {(fip.returnScenario || fip.visaInfo) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Return to Home Country */}
+          {fip.returnScenario && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6">
+              <div className="mb-4">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Return-to-Home Scenario</p>
+                <p className="text-sm text-slate-600 mt-0.5">
+                  If student returns — {Math.round(fip.returnScenario.probability * 100)}% probability
+                </p>
+              </div>
+              <div className="space-y-3">
+                {[
+                  { label: "Year 1", inr: fip.returnScenario.year1Inr },
+                  { label: "Year 3", inr: fip.returnScenario.year3Inr },
+                  { label: "Year 5", inr: fip.returnScenario.year5Inr },
+                ].map(({ label, inr }) => (
+                  <div key={label} className="flex items-center justify-between">
+                    <span className="text-xs font-medium text-slate-500 w-12">{label}</span>
+                    <div className="flex-1 mx-3 bg-slate-100 rounded-full h-2">
+                      <div
+                        className="bg-orange-400 h-2 rounded-full"
+                        style={{ width: `${Math.min(100, (inr / fip.returnScenario!.year5Inr) * 100)}%` }}
+                      />
+                    </div>
+                    <p className="text-sm font-semibold text-slate-900">{formatInr(inr)}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-slate-400 mt-3 leading-relaxed">{fip.returnScenario.rationale}</p>
+            </div>
+          )}
+
+          {/* Visa Pathway */}
+          {fip.visaInfo && (
+            <div className="bg-white rounded-2xl border border-slate-200 p-6">
+              <div className="mb-4">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Visa & Immigration Pathway</p>
+                <p className="text-sm font-medium text-blue-700 mt-1">{fip.visaInfo.visaType}</p>
+              </div>
+              <dl className="space-y-2.5">
+                <div className="flex justify-between text-sm">
+                  <dt className="text-slate-500">Post-study work permit</dt>
+                  <dd className="font-semibold text-slate-900">{fip.visaInfo.postStudyMonths} months</dd>
+                </div>
+                {fip.visaInfo.h1bLotteryProb != null && (
+                  <div className="flex justify-between text-sm">
+                    <dt className="text-slate-500">H1B lottery probability</dt>
+                    <dd className="font-semibold text-slate-900">{Math.round(fip.visaInfo.h1bLotteryProb * 100)}%</dd>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm">
+                  <dt className="text-slate-500">Employer sponsorship rate</dt>
+                  <dd className="font-semibold text-slate-900">{Math.round(fip.visaInfo.sponsorshipRate * 100)}%</dd>
+                </div>
+              </dl>
+              {fip.visaInfo.notes && (
+                <p className="text-xs text-slate-400 mt-3 leading-relaxed">{fip.visaInfo.notes}</p>
+              )}
+              <p className="text-xs text-blue-500 mt-2 italic">{fip.visaInfo.source}</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* LTI Card */}
       {lti && (
