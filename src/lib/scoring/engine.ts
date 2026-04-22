@@ -7,7 +7,7 @@ import type {
   LoanToIncomeResult,
   ConfidenceRange,
 } from "./types";
-import { getSchoolEarnings, getProgramEarnings, getOccupationWages, getOccupationGrowth, getH1BSalary, getOccupationDetails } from "../apis";
+import { getSchoolEarnings, getProgramEarnings, getOccupationWages, getOccupationGrowth, getH1BSalary, getOccupationDetails, getUsWageGrowth } from "../apis";
 import { getCountryEarnings } from "../apis/country-earnings";
 import { getExchangeRate as getLiveExchangeRate } from "../apis/fx";
 
@@ -475,8 +475,45 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
 
   const multiplierChain = uniPremium * degreeMult * cityMult * expPremiumFactor;
   const year1 = Math.round(baseSalary! * multiplierChain);
-  const year3 = Math.round(year1 * 1.15);
-  const year5 = Math.round(year1 * 1.32);
+
+  // Year 3 / Year 5 trajectory growth. For US destinations we derive the
+  // multiplier from FRED's Total Private Average Hourly Earnings series
+  // (CES0500000003) — a nominal wage index published monthly by BLS and
+  // mirrored on FRED. The 3-year and 5-year CAGR from that series is the
+  // best live proxy we have for "expected nominal salary growth". For
+  // non-US destinations the fixed +15% / +32% heuristic stands, since each
+  // country needs its own wage-growth feed (follow-up PRs).
+  let y3GrowthFactor = 1.15;
+  let y5GrowthFactor = 1.32;
+  let y3GrowthSource = "Internal model — fixed +15% year-3 uplift";
+  let y5GrowthSource = "Internal model — fixed +32% year-5 uplift";
+  let y3GrowthKind: "live" | "snapshot" | "heuristic" = "heuristic";
+  let y5GrowthKind: "live" | "snapshot" | "heuristic" = "heuristic";
+  let y3GrowthFetchedAt: string | undefined;
+  let y5GrowthFetchedAt: string | undefined;
+  let y3GrowthVintage: string | undefined;
+  let y5GrowthVintage: string | undefined;
+
+  if (input.destinationCountry === "US") {
+    try {
+      const wage = await getUsWageGrowth();
+      if (wage) {
+        y3GrowthFactor = Math.pow(1 + wage.cagr3yr, 3);
+        y5GrowthFactor = Math.pow(1 + wage.cagr5yr, 5);
+        y3GrowthSource = wage.source + ` — 3-yr CAGR ${(wage.cagr3yr * 100).toFixed(2)}%`;
+        y5GrowthSource = wage.source + ` — 5-yr CAGR ${(wage.cagr5yr * 100).toFixed(2)}%`;
+        y3GrowthKind = "live";
+        y5GrowthKind = "live";
+        y3GrowthFetchedAt = wage.fetchedAt;
+        y5GrowthFetchedAt = wage.fetchedAt;
+        y3GrowthVintage = wage.latestDate;
+        y5GrowthVintage = wage.latestDate;
+      }
+    } catch { /* fall back to fixed multipliers */ }
+  }
+
+  const year3 = Math.round(year1 * y3GrowthFactor);
+  const year5 = Math.round(year1 * y5GrowthFactor);
 
   // Project Year-1 P25/P75 (local currency) through the same multiplier chain
   // as the median. This keeps the band meaningful without conflating the raw
@@ -560,25 +597,35 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
       dataKind: "heuristic",
     },
     {
-      component: "Year 3 Growth (+15%)",
-      value: 1.15,
+      component: `Year 3 Growth (+${((y3GrowthFactor - 1) * 100).toFixed(1)}%)`,
+      value: y3GrowthFactor,
       type: "adjustment",
-      rationale: "Typical 3-year salary growth in destination market",
-      source: "Internal model — fixed +15% year-3 uplift",
-      dataKind: "heuristic",
+      rationale:
+        y3GrowthKind === "live"
+          ? "3-year nominal wage CAGR from FRED Total Private hourly earnings"
+          : "Typical 3-year salary growth in destination market",
+      source: y3GrowthSource,
+      dataKind: y3GrowthKind,
+      vintage: y3GrowthVintage,
+      fetchedAt: y3GrowthFetchedAt,
     },
     {
-      component: "Year 5 Growth (+32%)",
-      value: 1.32,
+      component: `Year 5 Growth (+${((y5GrowthFactor - 1) * 100).toFixed(1)}%)`,
+      value: y5GrowthFactor,
       type: "adjustment",
-      rationale: "Cumulative 5-year salary trajectory",
-      source: "Internal model — fixed +32% year-5 uplift",
-      dataKind: "heuristic",
+      rationale:
+        y5GrowthKind === "live"
+          ? "5-year nominal wage CAGR from FRED Total Private hourly earnings"
+          : "Cumulative 5-year salary trajectory",
+      source: y5GrowthSource,
+      dataKind: y5GrowthKind,
+      vintage: y5GrowthVintage,
+      fetchedAt: y5GrowthFetchedAt,
     },
   ];
 
   const dataSourceMap: Record<string, string> = {
-    US: "LIVE: BLS OES, College Scorecard, Frankfurter FX (when reachable). SNAPSHOT: H1B LCA Disclosures FY2025, BLS OOH 2024-25. HEURISTIC: university / degree / city / experience / year-3 / year-5 multipliers.",
+    US: "LIVE: BLS OES, College Scorecard, Frankfurter FX, FRED CES0500000003 wage-growth CAGR (when reachable). SNAPSHOT: H1B LCA Disclosures FY2025, BLS OOH 2024-25. HEURISTIC: university / degree / city / experience multipliers.",
     UK: "LIVE: Frankfurter FX. HEURISTIC: base salary (cited HESA LEO 2022-23 / ONS — pending primary-source audit) + all multipliers.",
     Canada: "LIVE: Frankfurter FX. HEURISTIC: base salary (cited StatCan LFS / PCEIP — pending primary-source audit) + all multipliers.",
     Australia: "LIVE: Frankfurter FX. HEURISTIC: base salary (cited QILT GOS 2024 / ABS — pending primary-source audit) + all multipliers.",
