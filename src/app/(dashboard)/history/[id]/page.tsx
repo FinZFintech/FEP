@@ -4,7 +4,7 @@ import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { formatCurrency, formatInr, getRiskBandColor } from "@/lib/utils";
 import type { EPBreakdownItem, FIPBreakdownItem } from "@/lib/scoring/types";
-import { DataSourceLabel, DataSourceLegend } from "@/components/ui/data-source-label";
+import { DataSourceLabel, DataSourceLegend, ProvenanceSummary } from "@/components/ui/data-source-label";
 
 interface AssessmentDetail {
   id: string;
@@ -39,6 +39,7 @@ interface AssessmentDetail {
   fipBreakdown: string;
   notes: string | null;
   createdBy: { name: string | null; email: string | null };
+  methodologyVersion?: string;
 }
 
 function ScoreGauge({ score, riskBand }: { score: number; riskBand: string }) {
@@ -155,6 +156,12 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
             ID: {data.id} · {new Date(data.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
             {" · by "}
             {data.createdBy.name ?? data.createdBy.email ?? "—"}
+            {data.methodologyVersion && (
+              <>
+                {" · "}
+                <span className="text-slate-400">Methodology v{data.methodologyVersion}</span>
+              </>
+            )}
           </p>
         </div>
         <Link
@@ -170,9 +177,12 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <div className="mb-4">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Employability Predictor</p>
-            <p className="text-sm text-slate-600 mt-0.5">Probability of employment within 12 months</p>
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Employability Predictor</p>
+              <p className="text-sm text-slate-600 mt-0.5">Probability of employment within 12 months</p>
+            </div>
+            <ProvenanceSummary items={epBreakdown} />
           </div>
           <div className="flex items-center gap-6">
             <ScoreGauge score={data.epScore} riskBand={data.epRiskBand} />
@@ -190,9 +200,12 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <div className="mb-4">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Future Income Predictor</p>
-            <p className="text-sm text-slate-600 mt-0.5">Expected annual salary trajectory</p>
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Future Income Predictor</p>
+              <p className="text-sm text-slate-600 mt-0.5">Expected annual salary trajectory</p>
+            </div>
+            <ProvenanceSummary items={fipBreakdown} />
           </div>
           <div className="space-y-3">
             {[
@@ -428,7 +441,10 @@ function EPBreakdownTab({ breakdown }: { breakdown: EPBreakdownItem[] }) {
   }
   return (
     <div className="space-y-4">
-      <DataSourceLegend />
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <DataSourceLegend />
+        <ProvenanceSummary items={breakdown} />
+      </div>
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left border-b border-slate-200">
@@ -444,7 +460,7 @@ function EPBreakdownTab({ breakdown }: { breakdown: EPBreakdownItem[] }) {
               <td className="py-3">
                 <p className="font-medium text-slate-900">{item.factor}</p>
                 <p className="text-xs text-slate-400 mt-0.5">{item.rationale}</p>
-                <DataSourceLabel source={item.source} dataKind={item.dataKind} vintage={item.vintage} isLive={item.isLive} />
+                <DataSourceLabel source={item.source} dataKind={item.dataKind} vintage={item.vintage} fetchedAt={item.fetchedAt} isLive={item.isLive} />
               </td>
               <td className="py-3 text-center text-slate-600">{(item.weight * 100).toFixed(0)}%</td>
               <td className="py-3 text-center">
@@ -515,7 +531,10 @@ function FIPBreakdownTab({
         <p className="text-sm text-slate-500">No breakdown data available for this assessment.</p>
       ) : (
         <>
-        <DataSourceLegend />
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <DataSourceLegend />
+          <ProvenanceSummary items={breakdown} />
+        </div>
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left border-b border-slate-200">
@@ -529,7 +548,14 @@ function FIPBreakdownTab({
                 <td className="py-3">
                   <p className="font-medium text-slate-900">{item.component}</p>
                   <p className="text-xs text-slate-400 mt-0.5">{item.rationale}</p>
-                  <DataSourceLabel source={item.source} dataKind={item.dataKind} vintage={item.vintage} isLive={item.isLive} />
+                  <DataSourceLabel source={item.source} dataKind={item.dataKind} vintage={item.vintage} fetchedAt={item.fetchedAt} isLive={item.isLive} />
+                  {item.confidence && (
+                    <p className="text-xs text-slate-500 mt-1">
+                      P25–P75: {item.confidence.unit ?? ""}{" "}
+                      {item.confidence.p25.toLocaleString()} – {item.confidence.p75.toLocaleString()}
+                      {item.confidence.sampleSize ? ` (n=${item.confidence.sampleSize.toLocaleString()})` : ""}
+                    </p>
+                  )}
                 </td>
                 <td className="py-3 text-right font-semibold text-slate-900">
                   {item.type === "base" ? formatCurrency(item.value, currency) : `× ${item.value.toFixed(2)}`}
