@@ -139,6 +139,25 @@ export function ResultCard({ result, formData, onNewAssessment }: ResultCardProp
               </div>
             ))}
           </div>
+          {(() => {
+            const baseItem = fip.breakdown.find((b) => b.type === "base");
+            return (
+              <div className="mt-4 pt-3 border-t border-slate-100 space-y-1">
+                {baseItem && (
+                  <DataSourceLabel
+                    source={baseItem.source}
+                    dataKind={baseItem.dataKind}
+                    vintage={baseItem.vintage}
+                    isLive={baseItem.isLive}
+                  />
+                )}
+                <DataSourceLabel
+                  source="Year 1/3/5 trajectory = base salary × university / degree / city / experience / growth multipliers (internal model). See FIP Breakdown for per-component provenance."
+                  dataKind="heuristic"
+                />
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -173,6 +192,11 @@ export function ResultCard({ result, formData, onNewAssessment }: ResultCardProp
                 ))}
               </div>
               <p className="text-xs text-slate-400 mt-3 leading-relaxed">{fip.returnScenario.rationale}</p>
+              <DataSourceLabel
+                source="Return salary = adjusted stay-abroad salary × nationality return multiplier (nationalities.json); Y3 +20% / Y5 +45% uplift; stay-abroad probability from H1B lottery × sponsorship rate where available."
+                dataKind="heuristic"
+                className="mt-2"
+              />
             </div>
           )}
 
@@ -240,6 +264,11 @@ export function ResultCard({ result, formData, onNewAssessment }: ResultCardProp
             </div>
           </div>
           <p className="text-xs text-slate-500">{lti.summary}</p>
+          <DataSourceLabel
+            source="EMI assumes 10-year term @ 10% p.a.; income from FIP Year 1 (INR). Band thresholds are an internal rubric."
+            dataKind="heuristic"
+            className="mt-2"
+          />
         </div>
       )}
 
