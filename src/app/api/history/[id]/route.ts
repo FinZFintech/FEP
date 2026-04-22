@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { computeEP, computeFIP } from "@/lib/scoring/engine";
+import { METHODOLOGY_VERSION } from "@/lib/scoring/methodology";
 import type { AssessmentInput } from "@/lib/scoring/types";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -74,5 +75,5 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     },
   });
 
-  return NextResponse.json({ id: updated.id, ep, fip });
+  return NextResponse.json({ id: updated.id, ep, fip, methodologyVersion: METHODOLOGY_VERSION });
 }

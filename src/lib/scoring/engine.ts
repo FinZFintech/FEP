@@ -1,6 +1,15 @@
-import type { AssessmentInput, EPResult, FIPResult, EPBreakdownItem, FIPBreakdownItem, LoanToIncomeResult } from "./types";
+import type {
+  AssessmentInput,
+  EPResult,
+  FIPResult,
+  EPBreakdownItem,
+  FIPBreakdownItem,
+  LoanToIncomeResult,
+  ConfidenceRange,
+} from "./types";
 import { getSchoolEarnings, getProgramEarnings, getOccupationWages, getOccupationGrowth, getH1BSalary, getOccupationDetails } from "../apis";
 import { getCountryEarnings } from "../apis/country-earnings";
+import { getExchangeRate as getLiveExchangeRate } from "../apis/fx";
 
 import universitiesData from "./lookups/universities.json";
 import coursesData from "./lookups/courses.json";
@@ -137,7 +146,9 @@ function getRiskBand(score: number): { band: "Low" | "Medium" | "High" | "Very H
   return { band: "Very High", color: "#dc2626" };
 }
 
-function getExchangeRate(currency: string): number {
+// Retained for any synchronous callers; prefer getLiveExchangeRate which
+// returns provenance + a live ECB rate via Frankfurter.
+function getFallbackExchangeRate(currency: string): number {
   const rates: Record<string, number> = {
     USD: parseFloat(process.env.INR_PER_USD ?? "83.5"),
     GBP: parseFloat(process.env.INR_PER_GBP ?? "106.0"),
@@ -342,6 +353,8 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
   let baseSalarySource: string;
   let baseSalaryKind: "live" | "snapshot" | "heuristic" = "heuristic";
   let baseSalaryVintage: string | undefined;
+  let baseSalaryFetchedAt: string | undefined;
+  let baseSalaryConfidence: ConfidenceRange | undefined;
 
   if (input.destinationCountry === "US") {
     let resolved = false;
@@ -353,6 +366,7 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
         baseSalary = programData.medianEarnings4yr;
         baseSalarySource = programData.source;
         baseSalaryKind = "live";
+        baseSalaryFetchedAt = new Date().toISOString();
         resolved = true;
       }
     } catch { /* continue to next source */ }
@@ -365,11 +379,17 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
         baseSalarySource = "DOL OFLC H1B LCA Disclosures (embedded)";
         baseSalaryKind = "snapshot";
         baseSalaryVintage = "FY2025 Q1-Q3";
+        baseSalaryConfidence = {
+          p25: h1bData.p25Salary,
+          p75: h1bData.p75Salary,
+          sampleSize: h1bData.sampleSize,
+          unit: "USD",
+        };
         resolved = true;
       }
     }
 
-    // 3) BLS OES — LIVE
+    // 3) BLS OES — LIVE (carries P25/P75 percentiles from OEWS)
     if (!resolved) {
       try {
         const blsData = await getOccupationWages(input.targetCourse);
@@ -377,6 +397,15 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
           baseSalary = blsData.annualMedianWage;
           baseSalarySource = blsData.source;
           baseSalaryKind = "live";
+          baseSalaryFetchedAt = new Date().toISOString();
+          if (blsData.annualWage25th && blsData.annualWage75th) {
+            baseSalaryConfidence = {
+              p25: blsData.annualWage25th,
+              p75: blsData.annualWage75th,
+              sampleSize: blsData.totalEmployment ?? undefined,
+              unit: "USD",
+            };
+          }
           resolved = true;
         }
       } catch { /* continue to fallback */ }
@@ -391,20 +420,18 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
     }
   } else {
     // Non-US: hardcoded country-earnings table. The module cites real surveys
-    // (HESA LEO, Stats Canada LFS, QILT, OECD EAG) but the numbers have not
+    // (HESA LEO, Stats Canada LFS, QILT, OECD EAG) but the numbers have NOT
     // been independently verified against the primary sources and the pattern
-    // of values suggests approximation. Labeled SNAPSHOT with vintage for now;
-    // downgrade to heuristic if an audit shows the numbers are fabricated.
+    // of values suggests approximation. Classifying as HEURISTIC until an
+    // audit reconciles each row against its cited source; at that point flip
+    // back to snapshot with vintage.
+    // TODO(data-audit): verify each country table in country-earnings.ts
+    // against HESA LEO / StatCan WDS / QILT / OECD / Eurostat primary CSVs.
     const countryEarnings = getCountryEarnings(input.destinationCountry, input.targetCourse);
     if (countryEarnings) {
       baseSalary = countryEarnings.median1yr;
-      baseSalarySource = countryEarnings.source + " (embedded — unverified)";
-      baseSalaryKind = "snapshot";
-      baseSalaryVintage =
-        input.destinationCountry === "UK" ? "2022-23"
-        : input.destinationCountry === "Canada" ? "2024"
-        : input.destinationCountry === "Australia" ? "2024"
-        : "2024";
+      baseSalarySource = countryEarnings.source + " (embedded — unverified, pending primary-source audit)";
+      baseSalaryKind = "heuristic";
     } else {
       const salaryMap: Record<string, number> = {
         UK: courseData.ukMedianWage,
@@ -446,11 +473,25 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
   const cityMult = getCityMultiplier(input.destinationCountry, input.targetCity);
   const expPremiumFactor = 1 + (input.workExperienceYears * 0.04);
 
-  const year1 = Math.round(baseSalary! * uniPremium * degreeMult * cityMult * expPremiumFactor);
+  const multiplierChain = uniPremium * degreeMult * cityMult * expPremiumFactor;
+  const year1 = Math.round(baseSalary! * multiplierChain);
   const year3 = Math.round(year1 * 1.15);
   const year5 = Math.round(year1 * 1.32);
 
-  const exchangeRate = getExchangeRate(countryData.currency);
+  // Project Year-1 P25/P75 (local currency) through the same multiplier chain
+  // as the median. This keeps the band meaningful without conflating the raw
+  // distribution with the modelled adjustments.
+  const year1LocalConfidence: ConfidenceRange | undefined = baseSalaryConfidence
+    ? {
+        p25: Math.round(baseSalaryConfidence.p25 * multiplierChain),
+        p75: Math.round(baseSalaryConfidence.p75 * multiplierChain),
+        sampleSize: baseSalaryConfidence.sampleSize,
+        unit: baseSalaryConfidence.unit,
+      }
+    : undefined;
+
+  const fx = await getLiveExchangeRate(countryData.currency);
+  const exchangeRate = fx.inrPerUnit;
 
   // Build H1B context for breakdown if available
   let h1bNote = "";
@@ -473,6 +514,18 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
       source: baseSalarySource! + (schoolEarningsLive ? " + School 10-yr median (live)" : ""),
       dataKind: baseSalaryKind,
       vintage: baseSalaryVintage,
+      fetchedAt: baseSalaryFetchedAt,
+      confidence: baseSalaryConfidence,
+    },
+    {
+      component: "INR Exchange Rate",
+      value: exchangeRate,
+      type: "multiplier",
+      rationale: `1 ${countryData.currency} → ₹${exchangeRate.toFixed(2)}`,
+      source: fx.source,
+      dataKind: fx.dataKind,
+      vintage: fx.vintage,
+      fetchedAt: fx.fetchedAt,
     },
     {
       component: "University Premium",
@@ -525,13 +578,13 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
   ];
 
   const dataSourceMap: Record<string, string> = {
-    US: "LIVE: BLS OES, College Scorecard (when reachable). SNAPSHOT: H1B LCA Disclosures FY2025, BLS OOH 2024-25. HEURISTIC: university / degree / city / experience / year-3 / year-5 multipliers.",
-    UK: "SNAPSHOT: HESA LEO 2022-23, ONS Labour Market Statistics (embedded, unverified). HEURISTIC: all multipliers.",
-    Canada: "SNAPSHOT: Statistics Canada LFS 2024, PCEIP (embedded, unverified). HEURISTIC: all multipliers.",
-    Australia: "SNAPSHOT: QILT GOS 2024, ABS Labour Force Survey (embedded, unverified). HEURISTIC: all multipliers.",
-    Germany: "SNAPSHOT: OECD EAG 2024, Bundesagentur fur Arbeit (embedded, unverified). HEURISTIC: all multipliers.",
-    France: "SNAPSHOT: OECD EAG 2024, INSEE Employment Survey (embedded, unverified). HEURISTIC: all multipliers.",
-    Ireland: "SNAPSHOT: CSO Ireland LFS, IDA Ireland wage benchmarks (embedded, unverified). HEURISTIC: all multipliers.",
+    US: "LIVE: BLS OES, College Scorecard, Frankfurter FX (when reachable). SNAPSHOT: H1B LCA Disclosures FY2025, BLS OOH 2024-25. HEURISTIC: university / degree / city / experience / year-3 / year-5 multipliers.",
+    UK: "LIVE: Frankfurter FX. HEURISTIC: base salary (cited HESA LEO 2022-23 / ONS — pending primary-source audit) + all multipliers.",
+    Canada: "LIVE: Frankfurter FX. HEURISTIC: base salary (cited StatCan LFS / PCEIP — pending primary-source audit) + all multipliers.",
+    Australia: "LIVE: Frankfurter FX. HEURISTIC: base salary (cited QILT GOS 2024 / ABS — pending primary-source audit) + all multipliers.",
+    Germany: "LIVE: Frankfurter FX. HEURISTIC: base salary (cited OECD EAG 2024 / Bundesagentur für Arbeit — pending primary-source audit) + all multipliers.",
+    France: "LIVE: Frankfurter FX. HEURISTIC: base salary (cited OECD EAG 2024 / INSEE — pending primary-source audit) + all multipliers.",
+    Ireland: "LIVE: Frankfurter FX. HEURISTIC: base salary (cited CSO Ireland / IDA — pending primary-source audit) + all multipliers.",
   };
 
   // Nationality-specific salary adjustment + return scenario
@@ -585,6 +638,26 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
     };
   }
 
+  // Project Year-1 confidence after nationality adjustment into both local
+  // currency and INR.
+  const adjYear1Confidence: ConfidenceRange | undefined = year1LocalConfidence
+    ? {
+        p25: Math.round(year1LocalConfidence.p25 * natSalaryAdj),
+        p75: Math.round(year1LocalConfidence.p75 * natSalaryAdj),
+        sampleSize: year1LocalConfidence.sampleSize,
+        unit: year1LocalConfidence.unit,
+      }
+    : undefined;
+
+  const year1InrConfidence: ConfidenceRange | undefined = adjYear1Confidence
+    ? {
+        p25: Math.round(adjYear1Confidence.p25 * exchangeRate),
+        p75: Math.round(adjYear1Confidence.p75 * exchangeRate),
+        sampleSize: adjYear1Confidence.sampleSize,
+        unit: "INR",
+      }
+    : undefined;
+
   return {
     currency: countryData.currency,
     year1Local: adjYear1,
@@ -593,6 +666,16 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
     year1Inr: Math.round(adjYear1 * exchangeRate),
     year3Inr: Math.round(adjYear3 * exchangeRate),
     year5Inr: Math.round(adjYear5 * exchangeRate),
+    year1LocalConfidence: adjYear1Confidence,
+    year1InrConfidence,
+    fx: {
+      currency: fx.currency,
+      inrPerUnit: fx.inrPerUnit,
+      source: fx.source,
+      dataKind: fx.dataKind,
+      vintage: fx.vintage,
+      fetchedAt: fx.fetchedAt,
+    },
     returnScenario: {
       year1Inr: returnYear1,
       year3Inr: returnYear3,

@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { formatCurrency, formatInr, getRiskBandColor } from "@/lib/utils";
 import type { EPResult, FIPResult, EPBreakdownItem, FIPBreakdownItem, LoanToIncomeResult } from "@/lib/scoring/types";
-import { DataSourceLabel, DataSourceLegend } from "@/components/ui/data-source-label";
+import { DataSourceLabel, DataSourceLegend, ProvenanceSummary } from "@/components/ui/data-source-label";
 
 interface ResultCardProps {
-  result: { id: string; ep: EPResult; fip: FIPResult; lti?: LoanToIncomeResult };
+  result: { id: string; ep: EPResult; fip: FIPResult; lti?: LoanToIncomeResult; methodologyVersion?: string };
   formData: Record<string, unknown>;
   onNewAssessment: () => void;
 }
@@ -41,7 +41,7 @@ function ScoreGauge({ score, riskBand }: { score: number; riskBand: string }) {
 }
 
 export function ResultCard({ result, formData, onNewAssessment }: ResultCardProps) {
-  const { ep, fip, lti } = result;
+  const { ep, fip, lti, methodologyVersion } = result;
   const [activeTab, setActiveTab] = useState<"overview" | "ep" | "fip" | "lti">("overview");
   const [exporting, setExporting] = useState(false);
 
@@ -52,7 +52,7 @@ export function ResultCard({ result, formData, onNewAssessment }: ResultCardProp
     setExporting(true);
     try {
       const { generatePDF } = await import("@/lib/pdf/generator");
-      generatePDF({ result, formData });
+      generatePDF({ result: { ...result, methodologyVersion }, formData });
     } finally {
       setExporting(false);
     }
@@ -66,7 +66,15 @@ export function ResultCard({ result, formData, onNewAssessment }: ResultCardProp
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold text-slate-900">Assessment: {studentName}</h2>
-          <p className="text-sm text-slate-500">ID: {result.id} · {new Date().toLocaleDateString("en-IN", { dateStyle: "medium" })}</p>
+          <p className="text-sm text-slate-500">
+            ID: {result.id} · {new Date().toLocaleDateString("en-IN", { dateStyle: "medium" })}
+            {methodologyVersion && (
+              <>
+                {" · "}
+                <span className="text-slate-400">Methodology v{methodologyVersion}</span>
+              </>
+            )}
+          </p>
         </div>
         <div className="flex gap-2">
           <button
@@ -100,6 +108,7 @@ export function ResultCard({ result, formData, onNewAssessment }: ResultCardProp
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Employability Predictor</p>
               <p className="text-sm text-slate-600 mt-0.5">Probability of employment within 12 months</p>
             </div>
+            <ProvenanceSummary items={ep.breakdown} />
           </div>
           <div className="flex items-center gap-6">
             <ScoreGauge score={ep.score} riskBand={ep.riskBand} />
@@ -114,9 +123,12 @@ export function ResultCard({ result, formData, onNewAssessment }: ResultCardProp
 
         {/* FIP Card */}
         <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <div className="mb-4">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Future Income Predictor</p>
-            <p className="text-sm text-slate-600 mt-0.5">Expected annual salary trajectory (stay abroad)</p>
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Future Income Predictor</p>
+              <p className="text-sm text-slate-600 mt-0.5">Expected annual salary trajectory (stay abroad)</p>
+            </div>
+            <ProvenanceSummary items={fip.breakdown} />
           </div>
           <div className="space-y-3">
             {[
@@ -139,6 +151,46 @@ export function ResultCard({ result, formData, onNewAssessment }: ResultCardProp
               </div>
             ))}
           </div>
+          {fip.year1LocalConfidence && (
+            <p className="mt-3 text-xs text-slate-500">
+              <span className="font-semibold text-slate-700">Year 1 range:</span>{" "}
+              {formatCurrency(fip.year1LocalConfidence.p25, currency)} –{" "}
+              {formatCurrency(fip.year1LocalConfidence.p75, currency)}{" "}
+              <span className="text-slate-400">
+                (P25–P75{fip.year1LocalConfidence.sampleSize
+                  ? `, n=${fip.year1LocalConfidence.sampleSize.toLocaleString()}`
+                  : ""})
+              </span>
+            </p>
+          )}
+          {(() => {
+            const baseItem = fip.breakdown.find((b) => b.type === "base");
+            return (
+              <div className="mt-4 pt-3 border-t border-slate-100 space-y-1">
+                {baseItem && (
+                  <DataSourceLabel
+                    source={baseItem.source}
+                    dataKind={baseItem.dataKind}
+                    vintage={baseItem.vintage}
+                    fetchedAt={baseItem.fetchedAt}
+                    isLive={baseItem.isLive}
+                  />
+                )}
+                {fip.fx && (
+                  <DataSourceLabel
+                    source={`FX: ${fip.fx.source}`}
+                    dataKind={fip.fx.dataKind}
+                    vintage={fip.fx.vintage}
+                    fetchedAt={fip.fx.fetchedAt}
+                  />
+                )}
+                <DataSourceLabel
+                  source="Year 1/3/5 trajectory = base salary × university / degree / city / experience / growth multipliers (internal model). See FIP Breakdown for per-component provenance."
+                  dataKind="heuristic"
+                />
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -173,6 +225,11 @@ export function ResultCard({ result, formData, onNewAssessment }: ResultCardProp
                 ))}
               </div>
               <p className="text-xs text-slate-400 mt-3 leading-relaxed">{fip.returnScenario.rationale}</p>
+              <DataSourceLabel
+                source="Return salary = adjusted stay-abroad salary × nationality return multiplier (nationalities.json); Y3 +20% / Y5 +45% uplift; stay-abroad probability from H1B lottery × sponsorship rate where available."
+                dataKind="heuristic"
+                className="mt-2"
+              />
             </div>
           )}
 
@@ -240,6 +297,11 @@ export function ResultCard({ result, formData, onNewAssessment }: ResultCardProp
             </div>
           </div>
           <p className="text-xs text-slate-500">{lti.summary}</p>
+          <DataSourceLabel
+            source="EMI assumes 10-year term @ 10% p.a.; income from FIP Year 1 (INR). Band thresholds are an internal rubric."
+            dataKind="heuristic"
+            className="mt-2"
+          />
         </div>
       )}
 
@@ -263,7 +325,7 @@ export function ResultCard({ result, formData, onNewAssessment }: ResultCardProp
 
         <div className="p-6">
           {activeTab === "overview" && (
-            <OverviewTab ep={ep} fip={fip} currency={currency} formData={formData} />
+            <OverviewTab ep={ep} fip={fip} currency={currency} formData={formData} methodologyVersion={methodologyVersion} />
           )}
           {activeTab === "ep" && <EPBreakdownTab breakdown={ep.breakdown} summary={ep.summary} />}
           {activeTab === "fip" && <FIPBreakdownTab breakdown={fip.breakdown} currency={currency} fip={fip} />}
@@ -274,7 +336,7 @@ export function ResultCard({ result, formData, onNewAssessment }: ResultCardProp
   );
 }
 
-function OverviewTab({ ep, fip, currency, formData }: { ep: EPResult; fip: FIPResult; currency: string; formData: Record<string, unknown> }) {
+function OverviewTab({ ep, fip, currency, formData, methodologyVersion }: { ep: EPResult; fip: FIPResult; currency: string; formData: Record<string, unknown>; methodologyVersion?: string }) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
       <div>
@@ -317,9 +379,23 @@ function OverviewTab({ ep, fip, currency, formData }: { ep: EPResult; fip: FIPRe
       </div>
       <div className="md:col-span-2 space-y-2">
         <DataSourceLegend />
-        <div className="p-4 bg-slate-50 rounded-xl text-xs text-slate-500">
-          <strong>Data Sources:</strong> {fip.dataSource}
+        <div className="p-4 bg-slate-50 rounded-xl text-xs text-slate-500 space-y-1">
+          <p><strong>Data Sources:</strong> {fip.dataSource}</p>
+          {fip.fx && (
+            <p>
+              <strong>FX:</strong> {fip.fx.source}
+              {fip.fx.inrPerUnit > 0 && fip.fx.currency !== "INR" && (
+                <span className="text-slate-400">
+                  {" "}(1 {fip.fx.currency} ≈ ₹{fip.fx.inrPerUnit.toFixed(2)})
+                </span>
+              )}
+            </p>
+          )}
+          {methodologyVersion && (
+            <p><strong>Methodology:</strong> v{methodologyVersion} — results persist their own version so historical cases stay reproducible.</p>
+          )}
         </div>
+        <ProvenanceSummary items={[...ep.breakdown, ...fip.breakdown]} className="mt-1" />
       </div>
     </div>
   );
@@ -329,7 +405,10 @@ function EPBreakdownTab({ breakdown, summary }: { breakdown: EPBreakdownItem[]; 
   return (
     <div className="space-y-4">
       <p className="text-sm text-slate-600 bg-slate-50 rounded-xl p-4">{summary}</p>
-      <DataSourceLegend />
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <DataSourceLegend />
+        <ProvenanceSummary items={breakdown} />
+      </div>
       <table className="w-full text-sm">
         <thead>
           <tr className="text-left border-b border-slate-200">
@@ -345,7 +424,7 @@ function EPBreakdownTab({ breakdown, summary }: { breakdown: EPBreakdownItem[]; 
               <td className="py-3">
                 <p className="font-medium text-slate-900">{item.factor}</p>
                 <p className="text-xs text-slate-400 mt-0.5">{item.rationale}</p>
-                <DataSourceLabel source={item.source} dataKind={item.dataKind} vintage={item.vintage} isLive={item.isLive} />
+                <DataSourceLabel source={item.source} dataKind={item.dataKind} vintage={item.vintage} fetchedAt={item.fetchedAt} isLive={item.isLive} />
               </td>
               <td className="py-3 text-center text-slate-600">{(item.weight * 100).toFixed(0)}%</td>
               <td className="py-3 text-center">
@@ -375,7 +454,19 @@ function EPBreakdownTab({ breakdown, summary }: { breakdown: EPBreakdownItem[]; 
 function FIPBreakdownTab({ breakdown, currency, fip }: { breakdown: FIPBreakdownItem[]; currency: string; fip: FIPResult }) {
   return (
     <div className="space-y-4">
-      <DataSourceLegend />
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <DataSourceLegend />
+        <ProvenanceSummary items={breakdown} />
+      </div>
+      {fip.year1InrConfidence && (
+        <div className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-600">
+          <span className="font-semibold text-slate-700">Year 1 income range (P25–P75, INR):</span>{" "}
+          {formatInr(fip.year1InrConfidence.p25)} – {formatInr(fip.year1InrConfidence.p75)}
+          {fip.year1InrConfidence.sampleSize
+            ? <span className="text-slate-400">{" "}· n={fip.year1InrConfidence.sampleSize.toLocaleString()}</span>
+            : null}
+        </div>
+      )}
       <div className="grid grid-cols-3 gap-4 text-center">
         {[
           { label: "Year 1", local: fip.year1Local, inr: fip.year1Inr },
@@ -403,7 +494,14 @@ function FIPBreakdownTab({ breakdown, currency, fip }: { breakdown: FIPBreakdown
               <td className="py-3">
                 <p className="font-medium text-slate-900">{item.component}</p>
                 <p className="text-xs text-slate-400 mt-0.5">{item.rationale}</p>
-                <DataSourceLabel source={item.source} dataKind={item.dataKind} vintage={item.vintage} isLive={item.isLive} />
+                <DataSourceLabel source={item.source} dataKind={item.dataKind} vintage={item.vintage} fetchedAt={item.fetchedAt} isLive={item.isLive} />
+                {item.confidence && (
+                  <p className="text-xs text-slate-500 mt-1">
+                    P25–P75: {item.confidence.unit ?? ""}{" "}
+                    {item.confidence.p25.toLocaleString()} – {item.confidence.p75.toLocaleString()}
+                    {item.confidence.sampleSize ? ` (n=${item.confidence.sampleSize.toLocaleString()})` : ""}
+                  </p>
+                )}
               </td>
               <td className="py-3 text-right font-semibold text-slate-900">
                 {item.type === "base"
