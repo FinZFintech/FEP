@@ -9,9 +9,18 @@
  * Results persisted in the database carry the version that produced them,
  * so historical assessments remain reproducible even after a recalibration.
  */
-export const METHODOLOGY_VERSION = "2026.04.2";
+export const METHODOLOGY_VERSION = "2026.04.3";
 
 export const METHODOLOGY_CHANGELOG: { version: string; date: string; summary: string }[] = [
+  {
+    version: "2026.04.3",
+    date: "2026-04-22",
+    summary:
+      "Non-US Year-3 / Year-5 salary trajectory moved from fixed +15% / +32% heuristic " +
+      "to live national wage-index CAGR: ONS KAB9 (UK), StatCan 14-10-0063-01 (Canada), " +
+      "Eurostat lc_lci_r2 wages component (DE/FR/IE/NL/SE), ABS WPI (Australia). " +
+      "UK SOC 2020 unit-group codes added to occupation crosswalk.",
+  },
   {
     version: "2026.04.2",
     date: "2026-04-22",

@@ -13,5 +13,17 @@ export type { ONetOccupationData } from "./onet";
 export { getUsWageGrowth, getUsCpiGrowth, getUsUnemploymentRate } from "./fred";
 export type { FredGrowthData, FredLevelData, FredSeriesPoint } from "./fred";
 
+export { getUkWageGrowth } from "./ons";
+export type { OnsGrowthData } from "./ons";
+
+export { getCanadaWageGrowth } from "./statcan";
+export type { StatCanGrowthData } from "./statcan";
+
+export { getEuWageGrowth, EUROSTAT_SUPPORTED_COUNTRIES } from "./eurostat";
+export type { EurostatGrowthData } from "./eurostat";
+
+export { getAustraliaWageGrowth } from "./abs";
+export type { AbsGrowthData } from "./abs";
+
 export { getOccupationCodes, OCCUPATION_CROSSWALK } from "./crosswalks/occupations";
 export type { OccupationCodes } from "./crosswalks/occupations";

@@ -7,7 +7,7 @@ import type {
   LoanToIncomeResult,
   ConfidenceRange,
 } from "./types";
-import { getSchoolEarnings, getProgramEarnings, getOccupationWages, getOccupationGrowth, getH1BSalary, getOccupationDetails, getUsWageGrowth } from "../apis";
+import { getSchoolEarnings, getProgramEarnings, getOccupationWages, getOccupationGrowth, getH1BSalary, getOccupationDetails, getUsWageGrowth, getUkWageGrowth, getCanadaWageGrowth, getEuWageGrowth, getAustraliaWageGrowth, EUROSTAT_SUPPORTED_COUNTRIES } from "../apis";
 import { getCountryEarnings } from "../apis/country-earnings";
 import { getExchangeRate as getLiveExchangeRate } from "../apis/fx";
 
@@ -476,17 +476,18 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
   const multiplierChain = uniPremium * degreeMult * cityMult * expPremiumFactor;
   const year1 = Math.round(baseSalary! * multiplierChain);
 
-  // Year 3 / Year 5 trajectory growth. For US destinations we derive the
-  // multiplier from FRED's Total Private Average Hourly Earnings series
-  // (CES0500000003) — a nominal wage index published monthly by BLS and
-  // mirrored on FRED. The 3-year and 5-year CAGR from that series is the
-  // best live proxy we have for "expected nominal salary growth". For
-  // non-US destinations the fixed +15% / +32% heuristic stands, since each
-  // country needs its own wage-growth feed (follow-up PRs).
+  // Year 3 / Year 5 trajectory growth. We derive the multiplier from the
+  // primary wage-index published by each destination's national statistical
+  // agency (FRED for US, ONS AWE for UK, StatCan SEPH for Canada, Eurostat
+  // LCI for EU, ABS WPI for Australia). Each is a live feed with 24-hour
+  // TTL cache. Falls back cleanly to the fixed +15% / +32% heuristic when
+  // the upstream API is unreachable.
   let y3GrowthFactor = 1.15;
   let y5GrowthFactor = 1.32;
   let y3GrowthSource = "Internal model — fixed +15% year-3 uplift";
   let y5GrowthSource = "Internal model — fixed +32% year-5 uplift";
+  let y3GrowthRationale = "Typical 3-year salary growth in destination market";
+  let y5GrowthRationale = "Cumulative 5-year salary trajectory";
   let y3GrowthKind: "live" | "snapshot" | "heuristic" = "heuristic";
   let y5GrowthKind: "live" | "snapshot" | "heuristic" = "heuristic";
   let y3GrowthFetchedAt: string | undefined;
@@ -494,23 +495,38 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
   let y3GrowthVintage: string | undefined;
   let y5GrowthVintage: string | undefined;
 
-  if (input.destinationCountry === "US") {
-    try {
-      const wage = await getUsWageGrowth();
-      if (wage) {
-        y3GrowthFactor = Math.pow(1 + wage.cagr3yr, 3);
-        y5GrowthFactor = Math.pow(1 + wage.cagr5yr, 5);
-        y3GrowthSource = wage.source + ` — 3-yr CAGR ${(wage.cagr3yr * 100).toFixed(2)}%`;
-        y5GrowthSource = wage.source + ` — 5-yr CAGR ${(wage.cagr5yr * 100).toFixed(2)}%`;
-        y3GrowthKind = "live";
-        y5GrowthKind = "live";
-        y3GrowthFetchedAt = wage.fetchedAt;
-        y5GrowthFetchedAt = wage.fetchedAt;
-        y3GrowthVintage = wage.latestDate;
-        y5GrowthVintage = wage.latestDate;
-      }
-    } catch { /* fall back to fixed multipliers */ }
-  }
+  try {
+    type WageGrowthLike = {
+      cagr3yr: number; cagr5yr: number; source: string;
+      dataKind: "live" | "heuristic"; fetchedAt: string; latestDate: string;
+    };
+    let wage: WageGrowthLike | null = null;
+    if (input.destinationCountry === "US") {
+      wage = await getUsWageGrowth();
+    } else if (input.destinationCountry === "UK") {
+      wage = await getUkWageGrowth();
+    } else if (input.destinationCountry === "Canada") {
+      wage = await getCanadaWageGrowth();
+    } else if (input.destinationCountry === "Australia") {
+      wage = await getAustraliaWageGrowth();
+    } else if (EUROSTAT_SUPPORTED_COUNTRIES.includes(input.destinationCountry)) {
+      wage = await getEuWageGrowth(input.destinationCountry);
+    }
+    if (wage) {
+      y3GrowthFactor = Math.pow(1 + wage.cagr3yr, 3);
+      y5GrowthFactor = Math.pow(1 + wage.cagr5yr, 5);
+      y3GrowthSource = wage.source + ` — 3-yr CAGR ${(wage.cagr3yr * 100).toFixed(2)}%`;
+      y5GrowthSource = wage.source + ` — 5-yr CAGR ${(wage.cagr5yr * 100).toFixed(2)}%`;
+      y3GrowthRationale = "3-year nominal wage CAGR from live national wage index";
+      y5GrowthRationale = "5-year nominal wage CAGR from live national wage index";
+      y3GrowthKind = wage.dataKind;
+      y5GrowthKind = wage.dataKind;
+      y3GrowthFetchedAt = wage.fetchedAt;
+      y5GrowthFetchedAt = wage.fetchedAt;
+      y3GrowthVintage = wage.latestDate;
+      y5GrowthVintage = wage.latestDate;
+    }
+  } catch { /* fall back to fixed multipliers */ }
 
   const year3 = Math.round(year1 * y3GrowthFactor);
   const year5 = Math.round(year1 * y5GrowthFactor);
@@ -600,10 +616,7 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
       component: `Year 3 Growth (+${((y3GrowthFactor - 1) * 100).toFixed(1)}%)`,
       value: y3GrowthFactor,
       type: "adjustment",
-      rationale:
-        y3GrowthKind === "live"
-          ? "3-year nominal wage CAGR from FRED Total Private hourly earnings"
-          : "Typical 3-year salary growth in destination market",
+      rationale: y3GrowthRationale,
       source: y3GrowthSource,
       dataKind: y3GrowthKind,
       vintage: y3GrowthVintage,
@@ -613,10 +626,7 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
       component: `Year 5 Growth (+${((y5GrowthFactor - 1) * 100).toFixed(1)}%)`,
       value: y5GrowthFactor,
       type: "adjustment",
-      rationale:
-        y5GrowthKind === "live"
-          ? "5-year nominal wage CAGR from FRED Total Private hourly earnings"
-          : "Cumulative 5-year salary trajectory",
+      rationale: y5GrowthRationale,
       source: y5GrowthSource,
       dataKind: y5GrowthKind,
       vintage: y5GrowthVintage,
@@ -625,13 +635,15 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
   ];
 
   const dataSourceMap: Record<string, string> = {
-    US: "LIVE: BLS OES, College Scorecard, Frankfurter FX, FRED CES0500000003 wage-growth CAGR (when reachable). SNAPSHOT: H1B LCA Disclosures FY2025, BLS OOH 2024-25. HEURISTIC: university / degree / city / experience multipliers.",
-    UK: "LIVE: Frankfurter FX. HEURISTIC: base salary (cited HESA LEO 2022-23 / ONS — pending primary-source audit) + all multipliers.",
-    Canada: "LIVE: Frankfurter FX. HEURISTIC: base salary (cited StatCan LFS / PCEIP — pending primary-source audit) + all multipliers.",
-    Australia: "LIVE: Frankfurter FX. HEURISTIC: base salary (cited QILT GOS 2024 / ABS — pending primary-source audit) + all multipliers.",
-    Germany: "LIVE: Frankfurter FX. HEURISTIC: base salary (cited OECD EAG 2024 / Bundesagentur für Arbeit — pending primary-source audit) + all multipliers.",
-    France: "LIVE: Frankfurter FX. HEURISTIC: base salary (cited OECD EAG 2024 / INSEE — pending primary-source audit) + all multipliers.",
-    Ireland: "LIVE: Frankfurter FX. HEURISTIC: base salary (cited CSO Ireland / IDA — pending primary-source audit) + all multipliers.",
+    US: "LIVE: BLS OES, College Scorecard, Frankfurter FX, FRED CES0500000003 wage-growth CAGR. SNAPSHOT: H1B LCA Disclosures FY2025, BLS OOH 2024-25. HEURISTIC: university / degree / city / experience multipliers.",
+    UK: "LIVE: Frankfurter FX, ONS KAB9 wage-growth CAGR (Year-3/5 trajectory). HEURISTIC: base salary (cited HESA LEO 2022-23 / ONS — pending primary-source audit) + multipliers.",
+    Canada: "LIVE: Frankfurter FX, StatCan 14-10-0063-01 wage-growth CAGR (Year-3/5 trajectory). HEURISTIC: base salary (cited StatCan LFS / PCEIP — pending primary-source audit) + multipliers.",
+    Australia: "LIVE: Frankfurter FX, ABS WPI wage-growth CAGR (Year-3/5 trajectory). HEURISTIC: base salary (cited QILT GOS 2024 / ABS — pending primary-source audit) + multipliers.",
+    Germany: "LIVE: Frankfurter FX, Eurostat lc_lci_r2 wage-growth CAGR (Year-3/5 trajectory). HEURISTIC: base salary (cited OECD EAG 2024 / Bundesagentur für Arbeit — pending primary-source audit) + multipliers.",
+    France: "LIVE: Frankfurter FX, Eurostat lc_lci_r2 wage-growth CAGR (Year-3/5 trajectory). HEURISTIC: base salary (cited OECD EAG 2024 / INSEE — pending primary-source audit) + multipliers.",
+    Ireland: "LIVE: Frankfurter FX, Eurostat lc_lci_r2 wage-growth CAGR (Year-3/5 trajectory). HEURISTIC: base salary (cited CSO Ireland / IDA — pending primary-source audit) + multipliers.",
+    Netherlands: "LIVE: Frankfurter FX, Eurostat lc_lci_r2 wage-growth CAGR (Year-3/5 trajectory). HEURISTIC: base salary (cited CBS Netherlands / Nuffic — pending primary-source audit) + multipliers.",
+    Sweden: "LIVE: Frankfurter FX, Eurostat lc_lci_r2 wage-growth CAGR (Year-3/5 trajectory). HEURISTIC: base salary (cited SCB 2024 / UKÄ — pending primary-source audit) + multipliers.",
   };
 
   // Nationality-specific salary adjustment + return scenario
