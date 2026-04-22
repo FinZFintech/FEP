@@ -9,9 +9,17 @@
  * Results persisted in the database carry the version that produced them,
  * so historical assessments remain reproducible even after a recalibration.
  */
-export const METHODOLOGY_VERSION = "2026.04.1";
+export const METHODOLOGY_VERSION = "2026.04.2";
 
 export const METHODOLOGY_CHANGELOG: { version: string; date: string; summary: string }[] = [
+  {
+    version: "2026.04.2",
+    date: "2026-04-22",
+    summary:
+      "US Year-3 / Year-5 salary trajectory moved from fixed +15% / +32% to live " +
+      "FRED CES0500000003 (Total Private hourly earnings) CAGR. SOC / ISCO-08 / " +
+      "NOC 2021 / ANZSCO 2022 occupation crosswalk added for future non-US feeds.",
+  },
   {
     version: "2026.04.1",
     date: "2026-04-22",
