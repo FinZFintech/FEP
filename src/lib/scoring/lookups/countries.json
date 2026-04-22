@@ -140,6 +140,73 @@
         "Limerick": 0.95,
         "Other": 0.90
       }
+    },
+    "New Zealand": {
+      "name": "New Zealand",
+      "currency": "NZD",
+      "flag": "🇳🇿",
+      "gradEmploymentRate": 0.82,
+      "avgMonthsToEmployment": 5.5,
+      "optStemMonths": 36,
+      "optNonStemMonths": 36,
+      "visaSponsorship": 0.65,
+      "countryScore": 76,
+      "cities": {
+        "Auckland": 1.20,
+        "Wellington": 1.10,
+        "Christchurch": 1.00,
+        "Other": 0.90
+      }
+    },
+    "Netherlands": {
+      "name": "Netherlands",
+      "currency": "EUR",
+      "flag": "🇳🇱",
+      "gradEmploymentRate": 0.88,
+      "avgMonthsToEmployment": 5.0,
+      "optStemMonths": 12,
+      "optNonStemMonths": 12,
+      "visaSponsorship": 0.65,
+      "countryScore": 84,
+      "cities": {
+        "Amsterdam": 1.25,
+        "Rotterdam": 1.10,
+        "The Hague": 1.10,
+        "Eindhoven": 1.10,
+        "Other": 0.95
+      }
+    },
+    "Singapore": {
+      "name": "Singapore",
+      "currency": "SGD",
+      "flag": "🇸🇬",
+      "gradEmploymentRate": 0.92,
+      "avgMonthsToEmployment": 3.5,
+      "optStemMonths": 0,
+      "optNonStemMonths": 0,
+      "visaSponsorship": 0.70,
+      "countryScore": 90,
+      "cities": {
+        "Singapore": 1.00
+      }
+    },
+    "Sweden": {
+      "name": "Sweden",
+      "currency": "SEK",
+      "flag": "🇸🇪",
+      "gradEmploymentRate": 0.85,
+      "avgMonthsToEmployment": 6.0,
+      "optStemMonths": 12,
+      "optNonStemMonths": 12,
+      "visaSponsorship": 0.60,
+      "countryScore": 78,
+      "cities": {
+        "Stockholm": 1.20,
+        "Gothenburg": 1.05,
+        "Malmo": 1.00,
+        "Uppsala": 0.95,
+        "Other": 0.90
+      }
     }
   }
 }

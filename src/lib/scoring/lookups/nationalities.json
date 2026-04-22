@@ -1,0 +1,216 @@
+{
+  "_comment": "Nationality-specific visa, work permit, and immigration adjustments per destination country. Sources: USCIS, UK Home Office, IRCC Canada, Australian DHA, BAMF Germany, etc.",
+  "nationalities": {
+    "Indian": {
+      "label": "Indian National",
+      "code": "IN",
+      "returnCountrySalaryMultiplier": 0.28,
+      "destinations": {
+        "US": {
+          "visaType": "F-1 → OPT → H1B",
+          "postStudyWorkMonthsStem": 36,
+          "postStudyWorkMonthsNonStem": 12,
+          "h1bLotteryProbGeneral": 0.27,
+          "h1bLotteryProbMasters": 0.48,
+          "employerSponsorshipRate": 0.72,
+          "avgMonthsToEmployment": 4.5,
+          "salaryAdjustment": 0.95,
+          "employabilityAdjustment": -5,
+          "notes": "H1B lottery is the primary bottleneck. Indians face longest green card backlog (10+ years EB2/EB3). STEM OPT provides 3-year buffer. ~285K H1B petitions filed by Indian nationals annually.",
+          "topEmployers": ["Amazon", "Google", "Microsoft", "Meta", "Apple", "Infosys", "TCS", "Cognizant", "Wipro", "Deloitte"],
+          "employerTierSplit": {
+            "bigTech": { "pct": 0.25, "salaryMultiplier": 1.30 },
+            "midTier": { "pct": 0.35, "salaryMultiplier": 1.00 },
+            "indianIT": { "pct": 0.30, "salaryMultiplier": 0.75 },
+            "other": { "pct": 0.10, "salaryMultiplier": 0.90 }
+          },
+          "source": "USCIS H1B Data Hub FY2025 | DOL OFLC LCA Disclosures"
+        },
+        "UK": {
+          "visaType": "Student → Graduate Route → Skilled Worker",
+          "postStudyWorkMonthsStem": 24,
+          "postStudyWorkMonthsNonStem": 24,
+          "h1bLotteryProbGeneral": null,
+          "h1bLotteryProbMasters": null,
+          "employerSponsorshipRate": 0.55,
+          "avgMonthsToEmployment": 6.0,
+          "salaryAdjustment": 0.92,
+          "employabilityAdjustment": -6,
+          "notes": "2-year Graduate Route visa for all degrees. Skilled Worker visa requires employer sponsorship with minimum salary threshold (£38,700 for most roles). Indians are the largest international student group in UK.",
+          "topEmployers": ["Deloitte", "PwC", "EY", "KPMG", "TCS", "Infosys", "Wipro", "Amazon", "Google"],
+          "source": "UK Home Office Immigration Statistics 2024 | HESA"
+        },
+        "Canada": {
+          "visaType": "Study Permit → PGWP → PR (Express Entry)",
+          "postStudyWorkMonthsStem": 36,
+          "postStudyWorkMonthsNonStem": 36,
+          "h1bLotteryProbGeneral": null,
+          "h1bLotteryProbMasters": null,
+          "employerSponsorshipRate": 0.85,
+          "avgMonthsToEmployment": 5.0,
+          "salaryAdjustment": 0.93,
+          "employabilityAdjustment": -3,
+          "notes": "Most favorable immigration pathway for Indians. 3-year PGWP regardless of STEM. Express Entry CRS score typically achievable with Canadian degree + work experience. ~40% of Express Entry invitations go to Indians.",
+          "topEmployers": ["Shopify", "RBC", "TD Bank", "Scotiabank", "Amazon", "Google", "Microsoft", "Deloitte"],
+          "source": "IRCC Express Entry Reports 2024 | Statistics Canada"
+        },
+        "Australia": {
+          "visaType": "Student → Temporary Graduate (subclass 485) → Skilled Migration",
+          "postStudyWorkMonthsStem": 24,
+          "postStudyWorkMonthsNonStem": 24,
+          "h1bLotteryProbGeneral": null,
+          "h1bLotteryProbMasters": null,
+          "employerSponsorshipRate": 0.60,
+          "avgMonthsToEmployment": 6.0,
+          "salaryAdjustment": 0.90,
+          "employabilityAdjustment": -5,
+          "notes": "Temporary Graduate visa (485) provides 2-4 years post-study work rights. Skilled migration via points-based system. Indians are the second largest student group after Chinese nationals.",
+          "topEmployers": ["Commonwealth Bank", "Telstra", "BHP", "Atlassian", "Canva", "Deloitte", "PwC"],
+          "source": "Australian DHA Migration Statistics 2024 | QILT"
+        },
+        "Germany": {
+          "visaType": "Student → Job Seeker Visa (18 months) → EU Blue Card",
+          "postStudyWorkMonthsStem": 18,
+          "postStudyWorkMonthsNonStem": 18,
+          "h1bLotteryProbGeneral": null,
+          "h1bLotteryProbMasters": null,
+          "employerSponsorshipRate": 0.70,
+          "avgMonthsToEmployment": 5.0,
+          "salaryAdjustment": 0.88,
+          "employabilityAdjustment": -4,
+          "notes": "18-month job seeker visa post-graduation. EU Blue Card available for STEM with minimum salary of €43,800. German language proficiency significantly impacts employability (+20% for B2 level). Low/no tuition fees offset by lower salaries vs US/UK.",
+          "topEmployers": ["SAP", "Siemens", "BMW", "Bosch", "Deutsche Bank", "Allianz", "Amazon"],
+          "source": "BAMF Migration Report 2024 | OECD"
+        },
+        "France": {
+          "visaType": "Student → APS (Temporary Residence) → Talent Passport",
+          "postStudyWorkMonthsStem": 12,
+          "postStudyWorkMonthsNonStem": 12,
+          "h1bLotteryProbGeneral": null,
+          "h1bLotteryProbMasters": null,
+          "employerSponsorshipRate": 0.48,
+          "avgMonthsToEmployment": 7.0,
+          "salaryAdjustment": 0.85,
+          "employabilityAdjustment": -8,
+          "notes": "12-month APS (Autorisation Provisoire de Séjour) post-graduation. French language is near-mandatory for most roles outside tech. Lower employer sponsorship rate vs other EU countries. Talent Passport for qualified workers.",
+          "topEmployers": ["BNP Paribas", "Société Générale", "TotalEnergies", "Capgemini", "Atos", "Orange"],
+          "source": "French Ministry of Interior Immigration Statistics 2024"
+        },
+        "Ireland": {
+          "visaType": "Student → Stay Back Visa (24 months) → Critical Skills Permit",
+          "postStudyWorkMonthsStem": 24,
+          "postStudyWorkMonthsNonStem": 24,
+          "h1bLotteryProbGeneral": null,
+          "h1bLotteryProbMasters": null,
+          "employerSponsorshipRate": 0.75,
+          "avgMonthsToEmployment": 4.0,
+          "salaryAdjustment": 0.95,
+          "employabilityAdjustment": -2,
+          "notes": "24-month Stay Back visa for Master's graduates. Ireland's tech hub status (Google, Meta, Apple EU HQs) creates strong demand for tech talent. Critical Skills Employment Permit fast-tracks sponsorship. Indians are a fast-growing student demographic.",
+          "topEmployers": ["Google", "Meta", "Apple", "Microsoft", "Accenture", "Amazon", "Stripe", "Salesforce"],
+          "source": "Irish Naturalisation and Immigration Service 2024"
+        },
+        "New Zealand": {
+          "visaType": "Student → Post-Study Work Visa (1-3 years) → Skilled Migrant",
+          "postStudyWorkMonthsStem": 36,
+          "postStudyWorkMonthsNonStem": 36,
+          "h1bLotteryProbGeneral": null,
+          "h1bLotteryProbMasters": null,
+          "employerSponsorshipRate": 0.65,
+          "avgMonthsToEmployment": 5.5,
+          "salaryAdjustment": 0.88,
+          "employabilityAdjustment": -4,
+          "notes": "Post-Study Work visa up to 3 years for Master's graduates. Points-based Skilled Migrant Category for PR. Smaller job market but lower competition. Pathway to citizenship in 5 years.",
+          "topEmployers": ["Xero", "Fisher & Paykel", "Air New Zealand", "Fonterra", "Datacom"],
+          "source": "Immigration New Zealand Statistics 2024"
+        },
+        "Netherlands": {
+          "visaType": "Student → Orientation Year (Zoekjaar) → Highly Skilled Migrant",
+          "postStudyWorkMonthsStem": 12,
+          "postStudyWorkMonthsNonStem": 12,
+          "h1bLotteryProbGeneral": null,
+          "h1bLotteryProbMasters": null,
+          "employerSponsorshipRate": 0.65,
+          "avgMonthsToEmployment": 5.0,
+          "salaryAdjustment": 0.90,
+          "employabilityAdjustment": -4,
+          "notes": "12-month Orientation Year (Zoekjaar) post-graduation. 30% tax ruling benefit for skilled migrants significantly boosts net salary. Strong tech and finance sector. English widely spoken in professional settings.",
+          "topEmployers": ["ASML", "Philips", "Shell", "ING", "Booking.com", "Adyen", "TomTom"],
+          "source": "IND Netherlands Immigration Statistics 2024"
+        },
+        "Singapore": {
+          "visaType": "Student → Employment Pass / S Pass",
+          "postStudyWorkMonthsStem": 0,
+          "postStudyWorkMonthsNonStem": 0,
+          "h1bLotteryProbGeneral": null,
+          "h1bLotteryProbMasters": null,
+          "employerSponsorshipRate": 0.70,
+          "avgMonthsToEmployment": 3.5,
+          "salaryAdjustment": 0.92,
+          "employabilityAdjustment": -3,
+          "notes": "No post-study work visa — must secure Employment Pass (min SGD 5,600/month) directly. Strong demand for tech and finance. Proximity to India is an advantage. Large Indian diaspora. Quick hiring process.",
+          "topEmployers": ["DBS Bank", "Google", "Meta", "Amazon", "Grab", "Sea Group", "Shopee"],
+          "source": "Singapore MOM Employment Statistics 2024"
+        },
+        "Sweden": {
+          "visaType": "Student → Job Seeker Permit (12 months) → Work Permit",
+          "postStudyWorkMonthsStem": 12,
+          "postStudyWorkMonthsNonStem": 12,
+          "h1bLotteryProbGeneral": null,
+          "h1bLotteryProbMasters": null,
+          "employerSponsorshipRate": 0.60,
+          "avgMonthsToEmployment": 6.0,
+          "salaryAdjustment": 0.88,
+          "employabilityAdjustment": -5,
+          "notes": "12-month job seeker permit post-graduation. Strong engineering and tech sector. Swedish language helpful but not mandatory in tech. High quality of life but moderate salaries compared to US/UK.",
+          "topEmployers": ["Spotify", "Ericsson", "Volvo", "IKEA", "Klarna", "King", "H&M"],
+          "source": "Swedish Migration Agency Statistics 2024"
+        }
+      }
+    },
+    "Nepali": {
+      "label": "Nepali National",
+      "code": "NP",
+      "returnCountrySalaryMultiplier": 0.18,
+      "destinations": {
+        "US": { "salaryAdjustment": 0.93, "employabilityAdjustment": -6, "employerSponsorshipRate": 0.68, "avgMonthsToEmployment": 5.0, "source": "USCIS Data | Estimated" },
+        "UK": { "salaryAdjustment": 0.90, "employabilityAdjustment": -7, "employerSponsorshipRate": 0.50, "avgMonthsToEmployment": 6.5, "source": "UK Home Office | Estimated" },
+        "Canada": { "salaryAdjustment": 0.91, "employabilityAdjustment": -4, "employerSponsorshipRate": 0.82, "avgMonthsToEmployment": 5.5, "source": "IRCC | Estimated" },
+        "Australia": { "salaryAdjustment": 0.88, "employabilityAdjustment": -6, "employerSponsorshipRate": 0.58, "avgMonthsToEmployment": 6.5, "source": "Australian DHA | Estimated" }
+      }
+    },
+    "Bangladeshi": {
+      "label": "Bangladeshi National",
+      "code": "BD",
+      "returnCountrySalaryMultiplier": 0.15,
+      "destinations": {
+        "US": { "salaryAdjustment": 0.93, "employabilityAdjustment": -6, "employerSponsorshipRate": 0.68, "avgMonthsToEmployment": 5.0, "source": "USCIS Data | Estimated" },
+        "UK": { "salaryAdjustment": 0.90, "employabilityAdjustment": -7, "employerSponsorshipRate": 0.50, "avgMonthsToEmployment": 6.5, "source": "UK Home Office | Estimated" },
+        "Canada": { "salaryAdjustment": 0.91, "employabilityAdjustment": -4, "employerSponsorshipRate": 0.80, "avgMonthsToEmployment": 5.5, "source": "IRCC | Estimated" },
+        "Australia": { "salaryAdjustment": 0.88, "employabilityAdjustment": -6, "employerSponsorshipRate": 0.55, "avgMonthsToEmployment": 6.5, "source": "Australian DHA | Estimated" }
+      }
+    },
+    "Sri Lankan": {
+      "label": "Sri Lankan National",
+      "code": "LK",
+      "returnCountrySalaryMultiplier": 0.12,
+      "destinations": {
+        "US": { "salaryAdjustment": 0.94, "employabilityAdjustment": -5, "employerSponsorshipRate": 0.70, "avgMonthsToEmployment": 4.8, "source": "USCIS Data | Estimated" },
+        "UK": { "salaryAdjustment": 0.91, "employabilityAdjustment": -6, "employerSponsorshipRate": 0.52, "avgMonthsToEmployment": 6.0, "source": "UK Home Office | Estimated" },
+        "Canada": { "salaryAdjustment": 0.92, "employabilityAdjustment": -3, "employerSponsorshipRate": 0.82, "avgMonthsToEmployment": 5.0, "source": "IRCC | Estimated" },
+        "Australia": { "salaryAdjustment": 0.90, "employabilityAdjustment": -5, "employerSponsorshipRate": 0.60, "avgMonthsToEmployment": 6.0, "source": "Australian DHA | Estimated" }
+      }
+    },
+    "Pakistani": {
+      "label": "Pakistani National",
+      "code": "PK",
+      "returnCountrySalaryMultiplier": 0.14,
+      "destinations": {
+        "US": { "salaryAdjustment": 0.93, "employabilityAdjustment": -6, "employerSponsorshipRate": 0.65, "avgMonthsToEmployment": 5.5, "source": "USCIS Data | Estimated" },
+        "UK": { "salaryAdjustment": 0.90, "employabilityAdjustment": -7, "employerSponsorshipRate": 0.50, "avgMonthsToEmployment": 6.5, "source": "UK Home Office | Estimated" },
+        "Canada": { "salaryAdjustment": 0.91, "employabilityAdjustment": -4, "employerSponsorshipRate": 0.80, "avgMonthsToEmployment": 5.5, "source": "IRCC | Estimated" },
+        "Australia": { "salaryAdjustment": 0.88, "employabilityAdjustment": -6, "employerSponsorshipRate": 0.55, "avgMonthsToEmployment": 6.5, "source": "Australian DHA | Estimated" }
+      }
+    }
+  }
+}

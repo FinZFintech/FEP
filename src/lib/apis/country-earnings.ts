@@ -191,6 +191,60 @@ export interface CountryEarningsData {
   source: string;
 }
 
+const NEW_ZEALAND_GRADUATE_EARNINGS: Record<string, { median1yr: number; median3yr: number; median5yr: number }> = {
+  "Computer Science": { median1yr: 70000, median3yr: 88000, median5yr: 105000 },
+  "Software Engineering": { median1yr: 72000, median3yr: 90000, median5yr: 108000 },
+  "Data Science": { median1yr: 75000, median3yr: 92000, median5yr: 110000 },
+  "Artificial Intelligence": { median1yr: 78000, median3yr: 98000, median5yr: 118000 },
+  "Machine Learning": { median1yr: 80000, median3yr: 100000, median5yr: 120000 },
+  "Cybersecurity": { median1yr: 72000, median3yr: 90000, median5yr: 108000 },
+  "MBA": { median1yr: 80000, median3yr: 100000, median5yr: 120000 },
+  "Finance": { median1yr: 62000, median3yr: 78000, median5yr: 95000 },
+  "Business Administration": { median1yr: 58000, median3yr: 72000, median5yr: 88000 },
+  "Mechanical Engineering": { median1yr: 62000, median3yr: 76000, median5yr: 90000 },
+  "Electrical Engineering": { median1yr: 65000, median3yr: 80000, median5yr: 95000 },
+  "Civil Engineering": { median1yr: 62000, median3yr: 76000, median5yr: 92000 },
+};
+
+const NETHERLANDS_GRADUATE_EARNINGS: Record<string, { median1yr: number; median3yr: number; median5yr: number }> = {
+  "Computer Science": { median1yr: 48000, median3yr: 60000, median5yr: 75000 },
+  "Software Engineering": { median1yr: 50000, median3yr: 62000, median5yr: 78000 },
+  "Data Science": { median1yr: 52000, median3yr: 65000, median5yr: 80000 },
+  "Artificial Intelligence": { median1yr: 55000, median3yr: 70000, median5yr: 88000 },
+  "Machine Learning": { median1yr: 58000, median3yr: 72000, median5yr: 90000 },
+  "Cybersecurity": { median1yr: 50000, median3yr: 62000, median5yr: 78000 },
+  "MBA": { median1yr: 60000, median3yr: 78000, median5yr: 98000 },
+  "Finance": { median1yr: 50000, median3yr: 65000, median5yr: 82000 },
+  "Business Administration": { median1yr: 45000, median3yr: 58000, median5yr: 72000 },
+  "Mechanical Engineering": { median1yr: 48000, median3yr: 58000, median5yr: 70000 },
+  "Electrical Engineering": { median1yr: 50000, median3yr: 62000, median5yr: 75000 },
+};
+
+const SINGAPORE_GRADUATE_EARNINGS: Record<string, { median1yr: number; median3yr: number; median5yr: number }> = {
+  "Computer Science": { median1yr: 72000, median3yr: 92000, median5yr: 115000 },
+  "Software Engineering": { median1yr: 75000, median3yr: 95000, median5yr: 120000 },
+  "Data Science": { median1yr: 78000, median3yr: 98000, median5yr: 122000 },
+  "Artificial Intelligence": { median1yr: 82000, median3yr: 105000, median5yr: 130000 },
+  "Machine Learning": { median1yr: 85000, median3yr: 108000, median5yr: 135000 },
+  "Cybersecurity": { median1yr: 72000, median3yr: 92000, median5yr: 115000 },
+  "MBA": { median1yr: 90000, median3yr: 115000, median5yr: 145000 },
+  "Finance": { median1yr: 68000, median3yr: 88000, median5yr: 112000 },
+  "Business Administration": { median1yr: 60000, median3yr: 78000, median5yr: 98000 },
+};
+
+const SWEDEN_GRADUATE_EARNINGS: Record<string, { median1yr: number; median3yr: number; median5yr: number }> = {
+  "Computer Science": { median1yr: 420000, median3yr: 510000, median5yr: 620000 },
+  "Software Engineering": { median1yr: 440000, median3yr: 530000, median5yr: 650000 },
+  "Data Science": { median1yr: 450000, median3yr: 540000, median5yr: 660000 },
+  "Artificial Intelligence": { median1yr: 480000, median3yr: 580000, median5yr: 720000 },
+  "Machine Learning": { median1yr: 500000, median3yr: 600000, median5yr: 740000 },
+  "Cybersecurity": { median1yr: 440000, median3yr: 530000, median5yr: 650000 },
+  "MBA": { median1yr: 520000, median3yr: 650000, median5yr: 800000 },
+  "Finance": { median1yr: 420000, median3yr: 520000, median5yr: 640000 },
+  "Mechanical Engineering": { median1yr: 400000, median3yr: 480000, median5yr: 580000 },
+  "Electrical Engineering": { median1yr: 420000, median3yr: 510000, median5yr: 620000 },
+};
+
 const COUNTRY_DATA: Record<string, {
   data: Record<string, { median1yr: number; median3yr: number; median5yr: number }>;
   currency: string;
@@ -202,6 +256,10 @@ const COUNTRY_DATA: Record<string, {
   Germany: { data: GERMANY_GRADUATE_EARNINGS, currency: "EUR", source: "OECD Education at a Glance 2024 + Bundesagentur fur Arbeit" },
   France: { data: FRANCE_GRADUATE_EARNINGS, currency: "EUR", source: "OECD Education at a Glance 2024 + INSEE Employment Survey" },
   Ireland: { data: IRELAND_GRADUATE_EARNINGS, currency: "EUR", source: "CSO Ireland Labour Force Survey 2024 + IDA Ireland" },
+  "New Zealand": { data: NEW_ZEALAND_GRADUATE_EARNINGS, currency: "NZD", source: "Education New Zealand Graduate Outcomes 2024" },
+  Netherlands: { data: NETHERLANDS_GRADUATE_EARNINGS, currency: "EUR", source: "CBS Netherlands Labour Force Survey 2024 + Nuffic" },
+  Singapore: { data: SINGAPORE_GRADUATE_EARNINGS, currency: "SGD", source: "Singapore MOM Employment Statistics 2024" },
+  Sweden: { data: SWEDEN_GRADUATE_EARNINGS, currency: "SEK", source: "Swedish Higher Education Authority 2024 + SCB" },
 };
 
 export function getCountryEarnings(country: string, course: string): CountryEarningsData | null {
