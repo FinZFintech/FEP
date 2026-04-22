@@ -48,6 +48,7 @@ model User {
   sessions    Session[]
   assessments Assessment[]
   batchJobs   BatchJob[]
+  ruleSets    RuleSet[]
 }
 
 model VerificationToken {
@@ -86,6 +87,8 @@ model Assessment {
 
   loanAmountInr Float?
 
+  ruleSetVersion String?
+
   epScore     Float
   epRiskBand  String
   epBreakdown String  @db.Text
@@ -116,4 +119,21 @@ model BatchJob {
   createdBy   User   @relation(fields: [createdById], references: [id])
 
   assessments Assessment[]
+}
+
+model RuleSet {
+  id            String   @id @default(cuid())
+  version       String   @unique
+  name          String
+  status        String   @default("draft")
+  parameters    String   @db.Text
+  changeSummary String?  @db.Text
+  createdAt     DateTime @default(now())
+  publishedAt   DateTime?
+  archivedAt    DateTime?
+
+  createdById   String?
+  createdBy     User?    @relation(fields: [createdById], references: [id])
+
+  @@index([status])
 }

@@ -12,6 +12,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         userName={session.user.name}
         userEmail={session.user.email}
         userImage={session.user.image}
+        userRole={session.user.role}
       />
       <main className="flex-1 overflow-auto">
         {children}

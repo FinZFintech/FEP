@@ -51,15 +51,35 @@ const navItems = [
       </svg>
     ),
   },
+  {
+    href: "/rules",
+    label: "Rule Engine",
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+      </svg>
+    ),
+  },
 ];
+
+const adminNavItem = {
+  href: "/admin",
+  label: "Admin",
+  icon: (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+    </svg>
+  ),
+};
 
 interface SidebarProps {
   userName?: string | null;
   userEmail?: string | null;
   userImage?: string | null;
+  userRole?: string | null;
 }
 
-export function Sidebar({ userName, userEmail, userImage }: SidebarProps) {
+export function Sidebar({ userName, userEmail, userImage, userRole }: SidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -96,6 +116,21 @@ export function Sidebar({ userName, userEmail, userImage }: SidebarProps) {
             {item.label}
           </Link>
         ))}
+        {userRole === "admin" && (
+          <Link
+            key={adminNavItem.href}
+            href={adminNavItem.href}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors mt-4 border-t border-slate-800 pt-4",
+              pathname === adminNavItem.href || pathname.startsWith(adminNavItem.href + "/")
+                ? "bg-blue-600 text-white"
+                : "text-slate-400 hover:text-white hover:bg-slate-800"
+            )}
+          >
+            {adminNavItem.icon}
+            {adminNavItem.label}
+          </Link>
+        )}
       </nav>
 
       {/* User */}

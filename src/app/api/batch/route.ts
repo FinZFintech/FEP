@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { computeEP, computeFIP } from "@/lib/scoring/engine";
+import { getActiveRuleSet } from "@/lib/rules";
 import type { AssessmentInput } from "@/lib/scoring/types";
 
 export async function POST(req: NextRequest) {
@@ -21,6 +22,7 @@ export async function POST(req: NextRequest) {
     },
   });
 
+  const activeRuleSet = await getActiveRuleSet();
   const results = [];
 
   for (const row of body.rows) {
@@ -30,6 +32,7 @@ export async function POST(req: NextRequest) {
       data: {
         createdById: session.user.id,
         batchJobId: batchJob.id,
+        ruleSetVersion: activeRuleSet.version,
         studentName: row.studentName,
         undergradInstitution: row.undergradInstitution,
         undergradTier: row.undergradTier,
