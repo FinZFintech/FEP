@@ -2,6 +2,7 @@
 
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { formatCurrency, formatInr, getRiskBandColor } from "@/lib/utils";
 import type { EPBreakdownItem, FIPBreakdownItem } from "@/lib/scoring/types";
 import { DataSourceLabel, DataSourceLegend, ProvenanceSummary } from "@/components/ui/data-source-label";
@@ -79,10 +80,33 @@ function ScoreGauge({ score, riskBand }: { score: number; riskBand: string }) {
 
 export default function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const [data, setData] = useState<AssessmentDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [activeTab, setActiveTab] = useState<"overview" | "ep" | "fip">("overview");
+
+  const handleDelete = async () => {
+    if (!data) return;
+    const ok = window.confirm(
+      `Delete assessment for ${data.studentName}?\n\nThis is permanent — the saved breakdown cannot be recovered.`,
+    );
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/history/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        alert(`Delete failed: ${body.error ?? res.statusText}`);
+        return;
+      }
+      router.push("/history");
+      router.refresh();
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -164,15 +188,28 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
             )}
           </p>
         </div>
-        <Link
-          href={`/history/${data.id}/edit`}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-medium rounded-xl transition-colors text-sm shrink-0"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-          </svg>
-          Edit Case
-        </Link>
+        <div className="flex gap-2 shrink-0">
+          <Link
+            href={`/history/${data.id}/edit`}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-medium rounded-xl transition-colors text-sm"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            Edit Case
+          </Link>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-red-50 border border-red-300 text-red-700 font-medium rounded-xl transition-colors text-sm disabled:opacity-50"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+            </svg>
+            {deleting ? "Deleting…" : "Delete"}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
