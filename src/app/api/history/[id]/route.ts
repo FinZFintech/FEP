@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { computeEP, computeFIP } from "@/lib/scoring/engine";
 import { METHODOLOGY_VERSION } from "@/lib/scoring/methodology";
+import { getActiveRuleSet } from "@/lib/rules";
 import type { AssessmentInput } from "@/lib/scoring/types";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -38,11 +39,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const body = (await req.json()) as AssessmentInput & { notes?: string };
 
-  const [ep, fip] = await Promise.all([computeEP(body), computeFIP(body)]);
+  const [ep, fip, activeRuleSet] = await Promise.all([
+    computeEP(body),
+    computeFIP(body),
+    getActiveRuleSet(),
+  ]);
 
   const updated = await prisma.assessment.update({
     where: { id },
     data: {
+      ruleSetVersion: activeRuleSet.version,
       studentName: body.studentName,
       undergradInstitution: body.undergradInstitution,
       undergradTier: body.undergradTier,
@@ -75,5 +81,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     },
   });
 
-  return NextResponse.json({ id: updated.id, ep, fip, methodologyVersion: METHODOLOGY_VERSION });
+  return NextResponse.json({
+    id: updated.id,
+    ep,
+    fip,
+    methodologyVersion: METHODOLOGY_VERSION,
+    ruleSetVersion: activeRuleSet.version,
+  });
 }

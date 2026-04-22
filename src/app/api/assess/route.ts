@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
 import { computeEP, computeFIP, computeLTI } from "@/lib/scoring/engine";
 import { METHODOLOGY_VERSION } from "@/lib/scoring/methodology";
+import { getActiveRuleSet } from "@/lib/rules";
 import type { AssessmentInput } from "@/lib/scoring/types";
 
 export async function POST(req: NextRequest) {
@@ -13,7 +14,11 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json() as AssessmentInput & { notes?: string };
 
-  const [ep, fip] = await Promise.all([computeEP(body), computeFIP(body)]);
+  const [ep, fip, activeRuleSet] = await Promise.all([
+    computeEP(body),
+    computeFIP(body),
+    getActiveRuleSet(),
+  ]);
 
   const lti = body.loanAmountInr
     ? computeLTI(body.loanAmountInr, fip.year1Inr, fip.year3Inr)
@@ -22,6 +27,7 @@ export async function POST(req: NextRequest) {
   const assessment = await prisma.assessment.create({
     data: {
       createdById: session.user.id,
+      ruleSetVersion: activeRuleSet.version,
       studentName: body.studentName,
       undergradInstitution: body.undergradInstitution,
       undergradTier: body.undergradTier,
@@ -54,5 +60,12 @@ export async function POST(req: NextRequest) {
     },
   });
 
-  return NextResponse.json({ id: assessment.id, ep, fip, lti, methodologyVersion: METHODOLOGY_VERSION });
+  return NextResponse.json({
+    id: assessment.id,
+    ep,
+    fip,
+    lti,
+    methodologyVersion: METHODOLOGY_VERSION,
+    ruleSetVersion: activeRuleSet.version,
+  });
 }

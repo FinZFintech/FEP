@@ -40,6 +40,7 @@ interface AssessmentDetail {
   notes: string | null;
   createdBy: { name: string | null; email: string | null };
   methodologyVersion?: string;
+  ruleSetVersion?: string | null;
 }
 
 function ScoreGauge({ score, riskBand }: { score: number; riskBand: string }) {
@@ -160,6 +161,14 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
               <>
                 {" · "}
                 <span className="text-slate-400">Methodology v{data.methodologyVersion}</span>
+              </>
+            )}
+            {data.ruleSetVersion && (
+              <>
+                {" · "}
+                <Link href="/rules/archive" className="text-blue-600 hover:underline">
+                  Rule set v{data.ruleSetVersion}
+                </Link>
               </>
             )}
           </p>
