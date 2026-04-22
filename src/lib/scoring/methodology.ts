@@ -9,9 +9,18 @@
  * Results persisted in the database carry the version that produced them,
  * so historical assessments remain reproducible even after a recalibration.
  */
-export const METHODOLOGY_VERSION = "2026.04.4";
+export const METHODOLOGY_VERSION = "2026.04.5";
 
 export const METHODOLOGY_CHANGELOG: { version: string; date: string; summary: string }[] = [
+  {
+    version: "2026.04.5",
+    date: "2026-04-22",
+    summary:
+      "US city wage multiplier upgraded to live Census ACS 5-yr B20004_006E " +
+      "(median earnings for graduate/professional degree holders, by MSA). " +
+      "Non-US city multipliers reclassified from HEURISTIC to SNAPSHOT with " +
+      "source citations (ONS ASHE / StatCan CMA / ABS / Bundesagentur / INSEE etc.).",
+  },
   {
     version: "2026.04.4",
     date: "2026-04-22",

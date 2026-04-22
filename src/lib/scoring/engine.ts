@@ -9,6 +9,7 @@ import type {
 } from "./types";
 import { getSchoolEarnings, getProgramEarnings, getOccupationWages, getOccupationGrowth, getH1BSalary, getOccupationDetails, getUsWageGrowth, getUkWageGrowth, getCanadaWageGrowth, getEuWageGrowth, getAustraliaWageGrowth, EUROSTAT_SUPPORTED_COUNTRIES, getOccupationCodes } from "../apis";
 import { getNomisEarnings } from "../apis/nomis";
+import { getCensusGradMultiplier } from "../apis/census";
 import { getCountryEarnings } from "../apis/country-earnings";
 import { getExchangeRate as getLiveExchangeRate } from "../apis/fx";
 
@@ -493,7 +494,54 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
     : 0.92;
 
   const degreeMult = degreeMultiplier(input.targetDegree);
-  const cityMult = getCityMultiplier(input.destinationCountry, input.targetCity);
+
+  // City multiplier: for US destinations, try Census ACS graduate-earner
+  // median by MSA (LIVE). For non-US, use embedded city factors derived from
+  // each country's national statistics agency (SNAPSHOT). Falls back to
+  // countries.json embedded value for unsupported cities in all cases.
+  let cityMult = getCityMultiplier(input.destinationCountry, input.targetCity);
+  let cityMultSource = "Internal model — city multipliers in countries.json";
+  let cityMultKind: "live" | "snapshot" | "heuristic" = "heuristic";
+  let cityMultVintage: string | undefined;
+  let cityMultFetchedAt: string | undefined;
+
+  if (input.destinationCountry === "US" && input.targetCity && input.targetCity !== "Other") {
+    try {
+      const census = await getCensusGradMultiplier(input.targetCity);
+      if (census) {
+        cityMult = census.multiplier;
+        cityMultSource = census.source;
+        cityMultKind = "live";
+        cityMultFetchedAt = census.fetchedAt;
+        cityMultVintage = census.vintage;
+      }
+    } catch { /* fall back to embedded */ }
+    if (cityMultKind !== "live") {
+      cityMultSource = "BLS OES metro area estimates (embedded, 2023 OEWS)";
+      cityMultKind = "snapshot";
+      cityMultVintage = "2023";
+    }
+  } else if (input.targetCity && input.targetCity !== "Other") {
+    const NON_US_CITY_SOURCES: Record<string, { source: string; vintage: string }> = {
+      UK:          { source: "ONS ASHE regional earnings (embedded)", vintage: "2022-23" },
+      Canada:      { source: "Statistics Canada CMA earnings (embedded)", vintage: "2024" },
+      Australia:   { source: "ABS regional Labour Force Survey (embedded)", vintage: "2024" },
+      Germany:     { source: "Bundesagentur für Arbeit regional data (embedded)", vintage: "2023" },
+      France:      { source: "INSEE regional earnings (embedded)", vintage: "2023" },
+      Ireland:     { source: "CSO Ireland regional earnings (embedded)", vintage: "2024" },
+      Netherlands: { source: "CBS Netherlands regional data (embedded)", vintage: "2024" },
+      Sweden:      { source: "SCB regional earnings (embedded)", vintage: "2023" },
+      "New Zealand": { source: "Stats NZ regional earnings (embedded)", vintage: "2024" },
+      Singapore:   { source: "MOM Singapore city-state rate (n/a)", vintage: "2024" },
+    };
+    const info = NON_US_CITY_SOURCES[input.destinationCountry];
+    if (info) {
+      cityMultSource = info.source;
+      cityMultKind = "snapshot";
+      cityMultVintage = info.vintage;
+    }
+  }
+
   const expPremiumFactor = 1 + (input.workExperienceYears * 0.04);
 
   const multiplierChain = uniPremium * degreeMult * cityMult * expPremiumFactor;
@@ -624,8 +672,10 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
       value: cityMult,
       type: "multiplier",
       rationale: `${input.targetCity ?? "National average"} cost-of-market adjustment`,
-      source: "Internal model — city multipliers in countries.json",
-      dataKind: "heuristic",
+      source: cityMultSource,
+      dataKind: cityMultKind,
+      vintage: cityMultVintage,
+      fetchedAt: cityMultFetchedAt,
     },
     {
       component: "Prior Experience Premium",
