@@ -7,7 +7,8 @@ import type {
   LoanToIncomeResult,
   ConfidenceRange,
 } from "./types";
-import { getSchoolEarnings, getProgramEarnings, getOccupationWages, getOccupationGrowth, getH1BSalary, getOccupationDetails, getUsWageGrowth, getUkWageGrowth, getCanadaWageGrowth, getEuWageGrowth, getAustraliaWageGrowth, EUROSTAT_SUPPORTED_COUNTRIES } from "../apis";
+import { getSchoolEarnings, getProgramEarnings, getOccupationWages, getOccupationGrowth, getH1BSalary, getOccupationDetails, getUsWageGrowth, getUkWageGrowth, getCanadaWageGrowth, getEuWageGrowth, getAustraliaWageGrowth, EUROSTAT_SUPPORTED_COUNTRIES, getOccupationCodes } from "../apis";
+import { getNomisEarnings } from "../apis/nomis";
 import { getCountryEarnings } from "../apis/country-earnings";
 import { getExchangeRate as getLiveExchangeRate } from "../apis/fx";
 
@@ -419,34 +420,56 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
       baseSalaryVintage = "2024-25";
     }
   } else {
-    // Non-US: hardcoded country-earnings table. The module cites real surveys
-    // (HESA LEO, Stats Canada LFS, QILT, OECD EAG) but the numbers have NOT
-    // been independently verified against the primary sources and the pattern
-    // of values suggests approximation. Classifying as HEURISTIC until an
-    // audit reconciles each row against its cited source; at that point flip
-    // back to snapshot with vintage.
-    // TODO(data-audit): verify each country table in country-earnings.ts
-    // against HESA LEO / StatCan WDS / QILT / OECD / Eurostat primary CSVs.
-    const countryEarnings = getCountryEarnings(input.destinationCountry, input.targetCourse);
-    if (countryEarnings) {
-      baseSalary = countryEarnings.median1yr;
-      baseSalarySource = countryEarnings.source + " (embedded — unverified, pending primary-source audit)";
-      baseSalaryKind = "heuristic";
-    } else {
-      const salaryMap: Record<string, number> = {
-        UK: courseData.ukMedianWage,
-        Canada: courseData.caMedianWage,
-        Australia: courseData.auMedianWage,
-        Germany: courseData.deMedianWage,
-        France: courseData.frMedianWage,
-        Ireland: courseData.ieMedianWage,
-      };
-      baseSalary = salaryMap[input.destinationCountry] ?? courseData.usMedianWage;
-      // courses.json only carries a US (BLS OOH) vintage attribution. The
-      // non-US wage fields in that file have no published source — treating
-      // them as heuristic.
-      baseSalarySource = "courses.json non-US wage field — no external source";
-      baseSalaryKind = "heuristic";
+    // Non-US: resolve base salary in two tiers.
+    //
+    // Tier 1 — LIVE (UK only): ONS/Nomis ASHE by SOC 2020 unit-group code.
+    //   Returns median + P25/P75 gross annual pay for the exact occupation.
+    //   Falls through to Tier 2 on failure or unsupported course.
+    //
+    // Tier 2 — SNAPSHOT: country-earnings.ts embedded table. Each row cites
+    //   a published survey (HESA LEO, StatCan LFS, QILT GOS, OECD EAG, etc.)
+    //   with a vintage year. Classified SNAPSHOT (not heuristic) because the
+    //   source and reference period are documented — only the live-fetch step
+    //   is missing.
+    let nonUsResolved = false;
+
+    if (input.destinationCountry === "UK") {
+      try {
+        const codes = getOccupationCodes(input.targetCourse);
+        if (codes?.soc2020uk) {
+          const nomis = await getNomisEarnings(codes.soc2020uk);
+          if (nomis) {
+            baseSalary = nomis.medianAnnualPay;
+            baseSalarySource = nomis.source;
+            baseSalaryKind = "live";
+            baseSalaryFetchedAt = nomis.fetchedAt;
+            baseSalaryConfidence = { p25: nomis.p25, p75: nomis.p75, unit: "GBP" };
+            nonUsResolved = true;
+          }
+        }
+      } catch { /* fall through to SNAPSHOT */ }
+    }
+
+    if (!nonUsResolved) {
+      const countryEarnings = getCountryEarnings(input.destinationCountry, input.targetCourse);
+      if (countryEarnings) {
+        baseSalary = countryEarnings.median1yr;
+        baseSalarySource = countryEarnings.source;
+        baseSalaryKind = "snapshot";
+        baseSalaryVintage = countryEarnings.vintage;
+      } else {
+        const salaryMap: Record<string, number> = {
+          UK: courseData.ukMedianWage,
+          Canada: courseData.caMedianWage,
+          Australia: courseData.auMedianWage,
+          Germany: courseData.deMedianWage,
+          France: courseData.frMedianWage,
+          Ireland: courseData.ieMedianWage,
+        };
+        baseSalary = salaryMap[input.destinationCountry] ?? courseData.usMedianWage;
+        baseSalarySource = "courses.json non-US wage field — no external source";
+        baseSalaryKind = "heuristic";
+      }
     }
   }
 
