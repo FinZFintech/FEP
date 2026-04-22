@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { formatCurrency, formatInr, getRiskBandColor } from "@/lib/utils";
-import type { EPResult, FIPResult, EPBreakdownItem, FIPBreakdownItem } from "@/lib/scoring/types";
+import type { EPResult, FIPResult, EPBreakdownItem, FIPBreakdownItem, LoanToIncomeResult } from "@/lib/scoring/types";
 import { DataSourceLabel, DataSourceLegend } from "@/components/ui/data-source-label";
 
 interface ResultCardProps {
-  result: { id: string; ep: EPResult; fip: FIPResult };
+  result: { id: string; ep: EPResult; fip: FIPResult; lti?: LoanToIncomeResult };
   formData: Record<string, unknown>;
   onNewAssessment: () => void;
 }
@@ -41,8 +41,8 @@ function ScoreGauge({ score, riskBand }: { score: number; riskBand: string }) {
 }
 
 export function ResultCard({ result, formData, onNewAssessment }: ResultCardProps) {
-  const { ep, fip } = result;
-  const [activeTab, setActiveTab] = useState<"overview" | "ep" | "fip">("overview");
+  const { ep, fip, lti } = result;
+  const [activeTab, setActiveTab] = useState<"overview" | "ep" | "fip" | "lti">("overview");
   const [exporting, setExporting] = useState(false);
 
   const currency = fip.currency;
@@ -142,20 +142,55 @@ export function ResultCard({ result, formData, onNewAssessment }: ResultCardProp
         </div>
       </div>
 
+      {/* LTI Card */}
+      {lti && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Loan-to-Income Analysis</p>
+              <p className="text-sm text-slate-600 mt-0.5">Repayment capacity assessment</p>
+            </div>
+            <div className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold border"
+              style={{ color: lti.bandColor, borderColor: lti.bandColor, backgroundColor: `${lti.bandColor}10` }}>
+              {lti.band}
+            </div>
+          </div>
+          <div className="grid grid-cols-4 gap-4 mb-3">
+            <div className="bg-slate-50 rounded-lg p-3 text-center">
+              <p className="text-xs text-slate-500">Loan Amount</p>
+              <p className="text-sm font-bold text-slate-900">{formatInr(lti.loanAmountInr)}</p>
+            </div>
+            <div className="bg-slate-50 rounded-lg p-3 text-center">
+              <p className="text-xs text-slate-500">Loan / Year 1</p>
+              <p className="text-sm font-bold" style={{ color: lti.bandColor }}>{lti.ratio1yr.toFixed(1)}×</p>
+            </div>
+            <div className="bg-slate-50 rounded-lg p-3 text-center">
+              <p className="text-xs text-slate-500">Monthly EMI</p>
+              <p className="text-sm font-bold text-slate-900">{formatInr(lti.monthlyEmi)}</p>
+            </div>
+            <div className="bg-slate-50 rounded-lg p-3 text-center">
+              <p className="text-xs text-slate-500">EMI / Income</p>
+              <p className="text-sm font-bold" style={{ color: lti.bandColor }}>{(lti.emiToIncomeRatio * 100).toFixed(0)}%</p>
+            </div>
+          </div>
+          <p className="text-xs text-slate-500">{lti.summary}</p>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="bg-white rounded-2xl border border-slate-200">
         <div className="flex border-b border-slate-200">
-          {(["overview", "ep", "fip"] as const).map((tab) => (
+          {(["overview", "ep", "fip", ...(lti ? ["lti" as const] : [])] as const).map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => setActiveTab(tab as typeof activeTab)}
               className={`px-6 py-3.5 text-sm font-medium transition-colors ${
                 activeTab === tab
                   ? "text-blue-600 border-b-2 border-blue-600"
                   : "text-slate-500 hover:text-slate-700"
               }`}
             >
-              {tab === "overview" ? "Overview" : tab === "ep" ? "EP Breakdown" : "FIP Breakdown"}
+              {tab === "overview" ? "Overview" : tab === "ep" ? "EP Breakdown" : tab === "fip" ? "FIP Breakdown" : "Loan Analysis"}
             </button>
           ))}
         </div>
@@ -166,6 +201,7 @@ export function ResultCard({ result, formData, onNewAssessment }: ResultCardProp
           )}
           {activeTab === "ep" && <EPBreakdownTab breakdown={ep.breakdown} summary={ep.summary} />}
           {activeTab === "fip" && <FIPBreakdownTab breakdown={fip.breakdown} currency={currency} fip={fip} />}
+          {activeTab === "lti" && lti && <LTIDetailTab lti={lti} />}
         </div>
       </div>
     </div>
@@ -312,6 +348,61 @@ function FIPBreakdownTab({ breakdown, currency, fip }: { breakdown: FIPBreakdown
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function LTIDetailTab({ lti }: { lti: LoanToIncomeResult }) {
+  const thresholds = [
+    { label: "Green (Low Risk)", range: "Loan <= 1.5x income, EMI <= 25%", color: "#16a34a" },
+    { label: "Yellow (Moderate)", range: "Loan <= 2.5x income, EMI <= 40%", color: "#ca8a04" },
+    { label: "Orange (Elevated)", range: "Loan <= 3.5x income, EMI <= 55%", color: "#ea580c" },
+    { label: "Red (High Risk)", range: "Loan > 3.5x income or EMI > 55%", color: "#dc2626" },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-slate-600 bg-slate-50 rounded-xl p-4">{lti.summary}</p>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[
+          { label: "Loan Amount", value: formatInr(lti.loanAmountInr) },
+          { label: "FIP Year 1 (INR)", value: formatInr(lti.fipYear1Inr) },
+          { label: "Loan / Year 1 Income", value: `${lti.ratio1yr.toFixed(2)}x`, color: lti.bandColor },
+          { label: "Loan / Year 3 Income", value: `${lti.ratio3yr.toFixed(2)}x` },
+        ].map((item) => (
+          <div key={item.label} className="bg-slate-50 rounded-xl p-4 text-center">
+            <p className="text-xs text-slate-500">{item.label}</p>
+            <p className="text-lg font-bold" style={{ color: item.color ?? "#0f172a" }}>{item.value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-slate-50 rounded-xl p-4 text-center">
+          <p className="text-xs text-slate-500">Estimated Monthly EMI</p>
+          <p className="text-lg font-bold text-slate-900">{formatInr(lti.monthlyEmi)}</p>
+          <p className="text-xs text-slate-400 mt-1">10-year term @ 10% p.a.</p>
+        </div>
+        <div className="bg-slate-50 rounded-xl p-4 text-center">
+          <p className="text-xs text-slate-500">EMI / Monthly Income</p>
+          <p className="text-lg font-bold" style={{ color: lti.bandColor }}>{(lti.emiToIncomeRatio * 100).toFixed(1)}%</p>
+          <p className="text-xs text-slate-400 mt-1">Based on FIP Year 1</p>
+        </div>
+      </div>
+
+      <div>
+        <h3 className="text-sm font-semibold text-slate-700 mb-2">Risk Band Thresholds</h3>
+        <div className="space-y-2">
+          {thresholds.map((t) => (
+            <div key={t.label} className="flex items-center gap-3 text-sm">
+              <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: t.color }} />
+              <span className="font-medium text-slate-700 w-40">{t.label}</span>
+              <span className="text-slate-500">{t.range}</span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

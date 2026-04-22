@@ -57,9 +57,23 @@ export interface FIPResult {
   dataSource: string;
 }
 
+export interface LoanToIncomeResult {
+  loanAmountInr: number;
+  fipYear1Inr: number;
+  fipYear3Inr: number;
+  ratio1yr: number;
+  ratio3yr: number;
+  band: "Green" | "Yellow" | "Orange" | "Red";
+  bandColor: string;
+  summary: string;
+  monthlyEmi: number;
+  emiToIncomeRatio: number;
+}
+
 export interface AssessmentResult {
   ep: EPResult;
   fip: FIPResult;
+  lti?: LoanToIncomeResult;
   input: AssessmentInput;
   computedAt: string;
 }
