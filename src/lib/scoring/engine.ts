@@ -177,6 +177,13 @@ export async function computeEP(input: AssessmentInput): Promise<EPResult> {
   const workExp = workExpScore(input.workExperienceYears);
   const countryEmployment = Math.round(countryData.gradEmploymentRate * 100);
 
+  // Country-level employment rate provenance (stored in countries.json)
+  const countryEmploymentSource =
+    countryData.name === "United Kingdom" ? { src: "HESA Graduate Outcomes Survey", vintage: "2023" }
+    : countryData.name === "Canada" ? { src: "Statistics Canada PCEIP", vintage: "2023" }
+    : countryData.name === "Australia" ? { src: "QILT Graduate Outcomes Survey", vintage: "2024" }
+    : { src: "OECD Education at a Glance", vintage: "2024" };
+
   const breakdown: EPBreakdownItem[] = [
     {
       factor: "Destination University Tier",
@@ -184,12 +191,14 @@ export async function computeEP(input: AssessmentInput): Promise<EPResult> {
       rawScore: Math.min(100, uniTierResult.score + completionBonus),
       weightedScore: Math.round((uniTierResult.score + completionBonus) * 0.25),
       rationale: `${uniTierResult.label} — QS World Rankings${completionNote}`,
-      // Tier score comes from the embedded QS rankings JSON (static); the completion
-      // bonus, when present, is the only part fetched live from College Scorecard.
+      // Primary value: QS tier table embedded in universities.json — snapshot.
+      // Scorecard completion bonus, when present, is an additive live piece
+      // called out in the source string and rationale.
       source: completionNote
-        ? "QS World University Rankings 2024-25 (static) + US College Scorecard API (live)"
-        : "QS World University Rankings 2024-25 (static)",
-      isLive: false,
+        ? "QS World University Rankings (embedded) + US College Scorecard completion rate (live)"
+        : "QS World University Rankings (embedded)",
+      dataKind: "snapshot",
+      vintage: "2024-25",
     },
     {
       factor: "Course Demand",
@@ -197,10 +206,13 @@ export async function computeEP(input: AssessmentInput): Promise<EPResult> {
       rawScore: Math.min(100, blsGrowth.score + onetBonus),
       weightedScore: Math.round((blsGrowth.score + onetBonus) * 0.20),
       rationale: blsGrowth.rationale + onetNote,
-      source: growthSource + (onetNote ? " + O*NET v30.2 (live)" : ""),
-      // Primary value (growth rate) is from a hardcoded BLS map — row is MOCK
-      // even when O*NET adds a live bonus. The source string exposes the mix.
-      isLive: false,
+      // Growth rate comes from a hardcoded BLS projections map inside bls.ts
+      // — real BLS publication, embedded snapshot. Score-to-band curve and
+      // O*NET bonus size are heuristics but the underlying growth % is a
+      // published figure.
+      source: growthSource.replace(" (static fallback)", " (embedded)") + (onetNote ? " + O*NET v30.2 (live)" : ""),
+      dataKind: "snapshot",
+      vintage: "2023-2033 projections",
     },
     {
       factor: "Student Caliber",
@@ -208,8 +220,10 @@ export async function computeEP(input: AssessmentInput): Promise<EPResult> {
       rawScore: caliber,
       weightedScore: Math.round(caliber * 0.20),
       rationale: `Undergrad: ${tierData.label} | CGPA: ${input.undergradCgpa} | ${input.gmatScore ? "GMAT" : "GRE"}: ${testResult.rationale}`,
-      source: "Composite: Institution tier + CGPA + Test scores (static thresholds)",
-      isLive: false,
+      // CGPA baselines per tier and GRE/GMAT score curves are invented
+      // thresholds with no external source.
+      source: "Internal model — tier score + CGPA baseline + GRE/GMAT curve",
+      dataKind: "heuristic",
     },
     {
       factor: "Destination Country Employment Rate",
@@ -217,11 +231,9 @@ export async function computeEP(input: AssessmentInput): Promise<EPResult> {
       rawScore: countryEmployment,
       weightedScore: Math.round(countryEmployment * 0.15),
       rationale: `${countryData.gradEmploymentRate * 100}% graduate employment rate in ${countryData.name}`,
-      source: (countryData.name === "United Kingdom" ? "HESA Graduate Outcomes Survey 2023"
-        : countryData.name === "Canada" ? "Statistics Canada PCEIP 2023"
-        : countryData.name === "Australia" ? "QILT Graduate Outcomes Survey 2024"
-        : "OECD Education at a Glance 2024") + " (static lookup)",
-      isLive: false,
+      source: `${countryEmploymentSource.src} (embedded)`,
+      dataKind: "snapshot",
+      vintage: countryEmploymentSource.vintage,
     },
     {
       factor: "STEM / Visa Advantage",
@@ -229,8 +241,11 @@ export async function computeEP(input: AssessmentInput): Promise<EPResult> {
       rawScore: stem.score,
       weightedScore: Math.round(stem.score * 0.10),
       rationale: stem.rationale,
-      source: "USCIS OPT / PGWP regulations 2024 (static)",
-      isLive: false,
+      // OPT/PGWP month counts are published policy facts (snapshot of 2024
+      // regulations) but the score mapping (US STEM → 100, Canada → 95,
+      // non-STEM → 40) is an invented curve. Dominant = heuristic.
+      source: "Internal model over USCIS OPT / PGWP 2024 policy",
+      dataKind: "heuristic",
     },
     {
       factor: "Work Experience",
@@ -238,8 +253,8 @@ export async function computeEP(input: AssessmentInput): Promise<EPResult> {
       rawScore: workExp.score,
       weightedScore: Math.round(workExp.score * 0.10),
       rationale: workExp.rationale,
-      source: "Internal model (static)",
-      isLive: false,
+      source: "Internal model — invented step curve by years of experience",
+      dataKind: "heuristic",
     },
   ];
 
@@ -263,61 +278,75 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
   const countryData = getCountryData(input.destinationCountry);
   const uniTierResult = getUniversityTierScore(input.destinationUniversity);
 
-  // Get base salary from best available source
+  // Resolve base salary. Track the exact provenance so the UI can show the
+  // right badge (live / snapshot+vintage / heuristic) instead of a vague "static".
   let baseSalary: number;
   let baseSalarySource: string;
-  let baseSalaryIsLive = false;
+  let baseSalaryKind: "live" | "snapshot" | "heuristic" = "heuristic";
+  let baseSalaryVintage: string | undefined;
 
   if (input.destinationCountry === "US") {
-    // Priority: 1) College Scorecard program-level → 2) H1B LCA → 3) BLS wages → 4) static fallback
     let resolved = false;
 
-    // Try College Scorecard program-level earnings (LIVE API)
+    // 1) College Scorecard program-level earnings — LIVE
     try {
       const programData = await getProgramEarnings(input.destinationUniversity, input.targetCourse, input.targetDegree);
       if (programData?.medianEarnings4yr) {
         baseSalary = programData.medianEarnings4yr;
         baseSalarySource = programData.source;
-        baseSalaryIsLive = true;
+        baseSalaryKind = "live";
         resolved = true;
       }
     } catch { /* continue to next source */ }
 
-    // Try H1B LCA actual salaries (STATIC — hardcoded table in h1b.ts)
+    // 2) H1B LCA — SNAPSHOT (DOL disclosure data, hardcoded in h1b.ts)
     if (!resolved) {
       const h1bData = getH1BSalary(input.targetCourse);
       if (h1bData) {
         baseSalary = h1bData.medianSalary;
-        baseSalarySource = h1bData.source + " (static lookup)";
+        baseSalarySource = "DOL OFLC H1B LCA Disclosures (embedded)";
+        baseSalaryKind = "snapshot";
+        baseSalaryVintage = "FY2025 Q1-Q3";
         resolved = true;
       }
     }
 
-    // Try BLS OES wages (LIVE API)
+    // 3) BLS OES — LIVE
     if (!resolved) {
       try {
         const blsData = await getOccupationWages(input.targetCourse);
         if (blsData?.annualMedianWage) {
           baseSalary = blsData.annualMedianWage;
           baseSalarySource = blsData.source;
-          baseSalaryIsLive = true;
+          baseSalaryKind = "live";
           resolved = true;
         }
       } catch { /* continue to fallback */ }
     }
 
-    // Static fallback
+    // 4) courses.json wage — SNAPSHOT (BLS Occupational Outlook Handbook)
     if (!resolved!) {
       baseSalary = courseData.usMedianWage;
-      baseSalarySource = "Static lookup table (fallback)";
+      baseSalarySource = "BLS Occupational Outlook Handbook (embedded)";
+      baseSalaryKind = "snapshot";
+      baseSalaryVintage = "2024-25";
     }
   } else {
-    // Non-US: country-specific graduate earnings table (hardcoded in
-    // country-earnings.ts — MOCK, not a live fetch despite the survey names).
+    // Non-US: hardcoded country-earnings table. The module cites real surveys
+    // (HESA LEO, Stats Canada LFS, QILT, OECD EAG) but the numbers have not
+    // been independently verified against the primary sources and the pattern
+    // of values suggests approximation. Labeled SNAPSHOT with vintage for now;
+    // downgrade to heuristic if an audit shows the numbers are fabricated.
     const countryEarnings = getCountryEarnings(input.destinationCountry, input.targetCourse);
     if (countryEarnings) {
       baseSalary = countryEarnings.median1yr;
-      baseSalarySource = countryEarnings.source + " (static lookup)";
+      baseSalarySource = countryEarnings.source + " (embedded — unverified)";
+      baseSalaryKind = "snapshot";
+      baseSalaryVintage =
+        input.destinationCountry === "UK" ? "2022-23"
+        : input.destinationCountry === "Canada" ? "2024"
+        : input.destinationCountry === "Australia" ? "2024"
+        : "2024";
     } else {
       const salaryMap: Record<string, number> = {
         UK: courseData.ukMedianWage,
@@ -328,7 +357,11 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
         Ireland: courseData.ieMedianWage,
       };
       baseSalary = salaryMap[input.destinationCountry] ?? courseData.usMedianWage;
-      baseSalarySource = "Static lookup table (fallback)";
+      // courses.json only carries a US (BLS OOH) vintage attribution. The
+      // non-US wage fields in that file have no published source — treating
+      // them as heuristic.
+      baseSalarySource = "courses.json non-US wage field — no external source";
+      baseSalaryKind = "heuristic";
     }
   }
 
@@ -370,75 +403,77 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
     }
   }
 
+  // Row dataKind mirrors the path that actually produced baseSalary. The
+  // school-earnings median is shown as context in the source string but does
+  // not change the row's classification (it's annotation, not the value).
   const breakdown: FIPBreakdownItem[] = [
     {
       component: "Base Salary",
       value: baseSalary!,
       type: "base",
       rationale: `${input.targetCourse} median salary in ${countryData.name}${schoolEarningsNote}${h1bNote}`,
-      source: baseSalarySource!,
-      // Only truly live when the base salary itself came from an API OR when
-      // we were able to layer on live school earnings.
-      isLive: baseSalaryIsLive || schoolEarningsLive,
+      source: baseSalarySource! + (schoolEarningsLive ? " + School 10-yr median (live)" : ""),
+      dataKind: baseSalaryKind,
+      vintage: baseSalaryVintage,
     },
     {
       component: "University Premium",
       value: uniPremium,
       type: "multiplier",
       rationale: `${uniTierResult.label} — alumni earnings premium over median`,
-      source: "QS tier → hardcoded multiplier table (static)",
-      isLive: false,
+      source: "Internal model — fixed multiplier per QS tier (T50→1.22, T100→1.12, …)",
+      dataKind: "heuristic",
     },
     {
       component: "Degree Level Premium",
       value: degreeMult,
       type: "multiplier",
       rationale: `${input.targetDegree} earnings premium over Bachelor's`,
-      source: "Hardcoded degree multiplier (static)",
-      isLive: false,
+      source: "Internal model — fixed multiplier per degree (PhD 1.10, MBA 1.18, MS 1.05, …)",
+      dataKind: "heuristic",
     },
     {
       component: "City / Metro Adjustment",
       value: cityMult,
       type: "multiplier",
       rationale: `${input.targetCity ?? "National average"} cost-of-market adjustment`,
-      source: "Hardcoded city multipliers in countries.json (static)",
-      isLive: false,
+      source: "Internal model — city multipliers in countries.json",
+      dataKind: "heuristic",
     },
     {
       component: "Prior Experience Premium",
       value: expPremiumFactor,
       type: "multiplier",
       rationale: `${input.workExperienceYears} yr(s) work experience → +${(input.workExperienceYears * 4).toFixed(0)}% salary uplift`,
-      source: "Internal model — 4% per year (static)",
-      isLive: false,
+      source: "Internal model — +4% per year of prior experience",
+      dataKind: "heuristic",
     },
     {
       component: "Year 3 Growth (+15%)",
       value: 1.15,
       type: "adjustment",
       rationale: "Typical 3-year salary growth in destination market",
-      source: "Hardcoded growth factor (static)",
-      isLive: false,
+      source: "Internal model — fixed +15% year-3 uplift",
+      dataKind: "heuristic",
     },
     {
       component: "Year 5 Growth (+32%)",
       value: 1.32,
       type: "adjustment",
       rationale: "Cumulative 5-year salary trajectory",
-      source: "Hardcoded growth factor (static)",
-      isLive: false,
+      source: "Internal model — fixed +32% year-5 uplift",
+      dataKind: "heuristic",
     },
   ];
 
   const dataSourceMap: Record<string, string> = {
-    US: "BLS OES (live when reachable) | College Scorecard API (live when reachable) | H1B LCA Disclosures FY2025 (static) | Multipliers & city/degree/experience premia (static)",
-    UK: "HESA LEO Graduate Outcomes 2023 (static) | ONS Labour Market Statistics (static) | Multipliers (static)",
-    Canada: "Statistics Canada LFS 2024 (static) | PCEIP (static) | Multipliers (static)",
-    Australia: "QILT GOS 2024 (static) | ABS Labour Force Survey (static) | Multipliers (static)",
-    Germany: "OECD Education at a Glance 2024 (static) | Bundesagentur fur Arbeit (static) | Multipliers (static)",
-    France: "OECD Education at a Glance 2024 (static) | INSEE Employment Survey (static) | Multipliers (static)",
-    Ireland: "CSO Ireland Labour Force Survey (static) | IDA Ireland wage benchmarks (static) | Multipliers (static)",
+    US: "LIVE: BLS OES, College Scorecard (when reachable). SNAPSHOT: H1B LCA Disclosures FY2025, BLS OOH 2024-25. HEURISTIC: university / degree / city / experience / year-3 / year-5 multipliers.",
+    UK: "SNAPSHOT: HESA LEO 2022-23, ONS Labour Market Statistics (embedded, unverified). HEURISTIC: all multipliers.",
+    Canada: "SNAPSHOT: Statistics Canada LFS 2024, PCEIP (embedded, unverified). HEURISTIC: all multipliers.",
+    Australia: "SNAPSHOT: QILT GOS 2024, ABS Labour Force Survey (embedded, unverified). HEURISTIC: all multipliers.",
+    Germany: "SNAPSHOT: OECD EAG 2024, Bundesagentur fur Arbeit (embedded, unverified). HEURISTIC: all multipliers.",
+    France: "SNAPSHOT: OECD EAG 2024, INSEE Employment Survey (embedded, unverified). HEURISTIC: all multipliers.",
+    Ireland: "SNAPSHOT: CSO Ireland LFS, IDA Ireland wage benchmarks (embedded, unverified). HEURISTIC: all multipliers.",
   };
 
   return {

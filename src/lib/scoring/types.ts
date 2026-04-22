@@ -18,6 +18,8 @@ export interface AssessmentInput {
   loanAmountInr?: number;
 }
 
+export type DataKind = "live" | "snapshot" | "heuristic";
+
 export interface EPBreakdownItem {
   factor: string;
   weight: number;
@@ -25,6 +27,8 @@ export interface EPBreakdownItem {
   weightedScore: number;
   rationale: string;
   source: string;
+  dataKind?: DataKind;
+  vintage?: string;
   isLive?: boolean;
 }
 
@@ -34,6 +38,8 @@ export interface FIPBreakdownItem {
   type: "base" | "multiplier" | "adjustment";
   rationale: string;
   source: string;
+  dataKind?: DataKind;
+  vintage?: string;
   isLive?: boolean;
 }
 
