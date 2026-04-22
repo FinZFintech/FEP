@@ -3,9 +3,8 @@
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { formatCurrency, formatInr, getRiskBandColor } from "@/lib/utils";
-import type { EPBreakdownItem, FIPBreakdownItem } from "@/lib/scoring/types";
-import { DataSourceLabel, DataSourceLegend, ProvenanceSummary } from "@/components/ui/data-source-label";
+import type { EPResult, FIPResult, LoanToIncomeResult } from "@/lib/scoring/types";
+import { AssessmentDetails } from "@/components/assessment/details";
 
 interface AssessmentDetail {
   id: string;
@@ -27,55 +26,12 @@ interface AssessmentDetail {
   programDurationMonths: number;
   targetCity: string | null;
   loanAmountInr: number | null;
-  epScore: number;
-  epRiskBand: string;
-  epBreakdown: string;
-  fipYear1Local: number;
-  fipYear3Local: number;
-  fipYear5Local: number;
-  fipYear1Inr: number;
-  fipYear3Inr: number;
-  fipYear5Inr: number;
-  fipCurrency: string;
-  fipBreakdown: string;
   notes: string | null;
   createdBy: { name: string | null; email: string | null };
+  ep: EPResult;
+  fip: FIPResult;
+  lti?: LoanToIncomeResult;
   methodologyVersion?: string;
-}
-
-function ScoreGauge({ score, riskBand }: { score: number; riskBand: string }) {
-  const colorMap: Record<string, string> = {
-    Low: "#16a34a",
-    Medium: "#ca8a04",
-    High: "#ea580c",
-    "Very High": "#dc2626",
-  };
-  const color = colorMap[riskBand] ?? "#6b7280";
-  const circumference = 2 * Math.PI * 40;
-  const strokeDash = (score / 100) * circumference;
-
-  return (
-    <div className="relative inline-flex items-center justify-center">
-      <svg width="120" height="120" viewBox="0 0 100 100">
-        <circle cx="50" cy="50" r="40" fill="none" stroke="#e2e8f0" strokeWidth="10" />
-        <circle
-          cx="50"
-          cy="50"
-          r="40"
-          fill="none"
-          stroke={color}
-          strokeWidth="10"
-          strokeDasharray={`${strokeDash} ${circumference}`}
-          strokeLinecap="round"
-          transform="rotate(-90 50 50)"
-        />
-      </svg>
-      <div className="absolute text-center">
-        <p className="text-2xl font-bold text-slate-900">{Math.round(score)}</p>
-        <p className="text-xs text-slate-500">/ 100</p>
-      </div>
-    </div>
-  );
 }
 
 export default function CaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -85,28 +41,6 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [activeTab, setActiveTab] = useState<"overview" | "ep" | "fip">("overview");
-
-  const handleDelete = async () => {
-    if (!data) return;
-    const ok = window.confirm(
-      `Delete assessment for ${data.studentName}?\n\nThis is permanent — the saved breakdown cannot be recovered.`,
-    );
-    if (!ok) return;
-    setDeleting(true);
-    try {
-      const res = await fetch(`/api/history/${id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        alert(`Delete failed: ${body.error ?? res.statusText}`);
-        return;
-      }
-      router.push("/history");
-      router.refresh();
-    } finally {
-      setDeleting(false);
-    }
-  };
 
   useEffect(() => {
     let cancelled = false;
@@ -132,6 +66,27 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
       cancelled = true;
     };
   }, [id]);
+
+  const handleDelete = async () => {
+    if (!data) return;
+    const ok = window.confirm(
+      `Delete assessment for ${data.studentName}?\n\nThis is permanent — the saved breakdown cannot be recovered.`,
+    );
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/history/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        alert(`Delete failed: ${body.error ?? res.statusText}`);
+        return;
+      }
+      router.push("/history");
+      router.refresh();
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -163,10 +118,27 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
     );
   }
 
-  const epBreakdown = safeParse<EPBreakdownItem[]>(data.epBreakdown, []);
-  const fipBreakdown = safeParse<FIPBreakdownItem[]>(data.fipBreakdown, []);
-  const currency = data.fipCurrency;
-  const riskColorClass = getRiskBandColor(data.epRiskBand);
+  // Rebuild the formData shape that AssessmentDetails expects — same keys as
+  // the fresh-assessment form, so the Overview tab renders identically.
+  const formData: Record<string, unknown> = {
+    studentName: data.studentName,
+    undergradInstitution: data.undergradInstitution,
+    undergradTier: data.undergradTier,
+    undergradDegree: data.undergradDegree,
+    undergradMajor: data.undergradMajor,
+    undergradCgpa: data.undergradCgpa,
+    greScore: data.greScore ?? undefined,
+    gmatScore: data.gmatScore ?? undefined,
+    workExperienceYears: data.workExperienceYears,
+    destinationCountry: data.destinationCountry,
+    destinationUniversity: data.destinationUniversity,
+    targetDegree: data.targetDegree,
+    targetCourse: data.targetCourse,
+    isStem: data.isStem,
+    programDurationMonths: data.programDurationMonths,
+    targetCity: data.targetCity,
+    loanAmountInr: data.loanAmountInr,
+  };
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-4">
@@ -212,396 +184,19 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Employability Predictor</p>
-              <p className="text-sm text-slate-600 mt-0.5">Probability of employment within 12 months</p>
-            </div>
-            <ProvenanceSummary items={epBreakdown} />
-          </div>
-          <div className="flex items-center gap-6">
-            <ScoreGauge score={data.epScore} riskBand={data.epRiskBand} />
-            <div>
-              <div
-                className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold border ${riskColorClass} mb-2`}
-              >
-                {data.epRiskBand} Risk
-              </div>
-              <p className="text-xs text-slate-500 leading-relaxed max-w-[220px]">
-                Final score computed from {epBreakdown.length} weighted factors at the time of assessment.
-              </p>
-            </div>
-          </div>
-        </div>
+      <AssessmentDetails
+        ep={data.ep}
+        fip={data.fip}
+        lti={data.lti}
+        methodologyVersion={data.methodologyVersion}
+        formData={formData}
+      />
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-6">
-          <div className="flex items-start justify-between mb-4">
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Future Income Predictor</p>
-              <p className="text-sm text-slate-600 mt-0.5">Expected annual salary trajectory</p>
-            </div>
-            <ProvenanceSummary items={fipBreakdown} />
-          </div>
-          <div className="space-y-3">
-            {[
-              { label: "Year 1", local: data.fipYear1Local, inr: data.fipYear1Inr },
-              { label: "Year 3", local: data.fipYear3Local, inr: data.fipYear3Inr },
-              { label: "Year 5", local: data.fipYear5Local, inr: data.fipYear5Inr },
-            ].map(({ label, local, inr }) => (
-              <div key={label} className="flex items-center justify-between">
-                <span className="text-xs font-medium text-slate-500 w-12">{label}</span>
-                <div className="flex-1 mx-3 bg-slate-100 rounded-full h-2">
-                  <div
-                    className="bg-blue-500 h-2 rounded-full"
-                    style={{ width: `${Math.min(100, (local / data.fipYear5Local) * 100)}%` }}
-                  />
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-semibold text-slate-900">{formatCurrency(local, currency)}</p>
-                  <p className="text-xs text-slate-400">{formatInr(inr)}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Loan-to-Income Analysis (computed from stored data) */}
-      {data.loanAmountInr && data.loanAmountInr > 0 && (() => {
-        const loanAmt = data.loanAmountInr!;
-        const ratio1yr = loanAmt / data.fipYear1Inr;
-        const monthlyRate = 0.10 / 12;
-        const months = 120;
-        const emi = Math.round(loanAmt * monthlyRate * Math.pow(1 + monthlyRate, months) / (Math.pow(1 + monthlyRate, months) - 1));
-        const emiRatio = emi / (data.fipYear1Inr / 12);
-        const band = ratio1yr <= 1.5 && emiRatio <= 0.25 ? "Green"
-          : ratio1yr <= 2.5 && emiRatio <= 0.40 ? "Yellow"
-          : ratio1yr <= 3.5 && emiRatio <= 0.55 ? "Orange" : "Red";
-        const bandColor = band === "Green" ? "#16a34a" : band === "Yellow" ? "#ca8a04" : band === "Orange" ? "#ea580c" : "#dc2626";
-
-        return (
-          <div className="bg-white rounded-2xl border border-slate-200 p-6">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Loan-to-Income Analysis</p>
-                <p className="text-sm text-slate-600 mt-0.5">Repayment capacity assessment</p>
-              </div>
-              <div className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold border"
-                style={{ color: bandColor, borderColor: bandColor, backgroundColor: `${bandColor}10` }}>
-                {band}
-              </div>
-            </div>
-            <div className="grid grid-cols-4 gap-4">
-              <div className="bg-slate-50 rounded-lg p-3 text-center">
-                <p className="text-xs text-slate-500">Loan Amount</p>
-                <p className="text-sm font-bold text-slate-900">{formatInr(loanAmt)}</p>
-              </div>
-              <div className="bg-slate-50 rounded-lg p-3 text-center">
-                <p className="text-xs text-slate-500">Loan / Year 1</p>
-                <p className="text-sm font-bold" style={{ color: bandColor }}>{ratio1yr.toFixed(1)}x</p>
-              </div>
-              <div className="bg-slate-50 rounded-lg p-3 text-center">
-                <p className="text-xs text-slate-500">Monthly EMI</p>
-                <p className="text-sm font-bold text-slate-900">{formatInr(emi)}</p>
-              </div>
-              <div className="bg-slate-50 rounded-lg p-3 text-center">
-                <p className="text-xs text-slate-500">EMI / Income</p>
-                <p className="text-sm font-bold" style={{ color: bandColor }}>{(emiRatio * 100).toFixed(0)}%</p>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Return-to-Home Scenario (computed from stored data, assumes Indian nationality) */}
-      {(() => {
-        const returnMultiplier = 0.28;
-        const returnYear1 = Math.round(data.fipYear1Inr * returnMultiplier);
-        const returnYear3 = Math.round(returnYear1 * 1.20);
-        const returnYear5 = Math.round(returnYear1 * 1.45);
-
-        return (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white rounded-2xl border border-slate-200 p-6">
-              <div className="mb-4">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Return-to-Home Scenario</p>
-                <p className="text-sm text-slate-600 mt-0.5">If student returns to India</p>
-              </div>
-              <div className="space-y-3">
-                {[
-                  { label: "Year 1", inr: returnYear1 },
-                  { label: "Year 3", inr: returnYear3 },
-                  { label: "Year 5", inr: returnYear5 },
-                ].map(({ label, inr }) => (
-                  <div key={label} className="flex items-center justify-between">
-                    <span className="text-xs font-medium text-slate-500 w-12">{label}</span>
-                    <div className="flex-1 mx-3 bg-slate-100 rounded-full h-2">
-                      <div className="bg-orange-400 h-2 rounded-full"
-                        style={{ width: `${Math.min(100, (inr / returnYear5) * 100)}%` }} />
-                    </div>
-                    <p className="text-sm font-semibold text-slate-900">{formatInr(inr)}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl border border-slate-200 p-6">
-              <div className="mb-4">
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Income Comparison</p>
-                <p className="text-sm text-slate-600 mt-0.5">Stay abroad vs return to India</p>
-              </div>
-              <div className="space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Year 1 (Abroad)</span>
-                  <span className="font-semibold text-slate-900">{formatInr(data.fipYear1Inr)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Year 1 (India)</span>
-                  <span className="font-semibold text-orange-600">{formatInr(returnYear1)}</span>
-                </div>
-                <div className="flex justify-between text-sm border-t border-slate-100 pt-2">
-                  <span className="text-slate-500">Difference</span>
-                  <span className="font-semibold text-red-600">-{Math.round((1 - returnMultiplier) * 100)}%</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
-
-      <div className="bg-white rounded-2xl border border-slate-200">
-        <div className="flex border-b border-slate-200">
-          {(["overview", "ep", "fip"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`px-6 py-3.5 text-sm font-medium transition-colors ${
-                activeTab === tab
-                  ? "text-blue-600 border-b-2 border-blue-600"
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              {tab === "overview" ? "Overview" : tab === "ep" ? "EP Breakdown" : "FIP Breakdown"}
-            </button>
-          ))}
-        </div>
-
-        <div className="p-6">
-          {activeTab === "overview" && <OverviewTab data={data} />}
-          {activeTab === "ep" && <EPBreakdownTab breakdown={epBreakdown} />}
-          {activeTab === "fip" && (
-            <FIPBreakdownTab
-              breakdown={fipBreakdown}
-              currency={currency}
-              years={{
-                year1Local: data.fipYear1Local,
-                year3Local: data.fipYear3Local,
-                year5Local: data.fipYear5Local,
-                year1Inr: data.fipYear1Inr,
-                year3Inr: data.fipYear3Inr,
-                year5Inr: data.fipYear5Inr,
-              }}
-            />
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function safeParse<T>(raw: string, fallback: T): T {
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-function OverviewTab({ data }: { data: AssessmentDetail }) {
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-      <div>
-        <h3 className="text-sm font-semibold text-slate-700 mb-3">Student Profile</h3>
-        <dl className="space-y-2">
-          {[
-            ["Name", data.studentName],
-            ["Institution", data.undergradInstitution],
-            ["Tier", data.undergradTier],
-            ["Degree", `${data.undergradDegree} · ${data.undergradMajor}`],
-            ["CGPA", `${data.undergradCgpa}`],
-            ["GRE", data.greScore ? `${data.greScore}` : "—"],
-            ["GMAT", data.gmatScore ? `${data.gmatScore}` : "—"],
-            ["Experience", `${data.workExperienceYears} years`],
-          ].map(([k, v]) => (
-            <div key={k} className="flex justify-between text-sm gap-4">
-              <dt className="text-slate-500">{k}</dt>
-              <dd className="font-medium text-slate-900 text-right">{v}</dd>
-            </div>
-          ))}
-        </dl>
-      </div>
-      <div>
-        <h3 className="text-sm font-semibold text-slate-700 mb-3">Programme Details</h3>
-        <dl className="space-y-2">
-          {[
-            ["Country", data.destinationCountry],
-            ["University", data.destinationUniversity],
-            ["Degree", data.targetDegree],
-            ["Course", data.targetCourse],
-            ["STEM", data.isStem ? "Yes" : "No"],
-            ["Duration", `${data.programDurationMonths} months`],
-            ["City", data.targetCity ?? "—"],
-            ["Loan Amount", data.loanAmountInr ? formatInr(data.loanAmountInr) : "—"],
-          ].map(([k, v]) => (
-            <div key={k} className="flex justify-between text-sm gap-4">
-              <dt className="text-slate-500">{k}</dt>
-              <dd className="font-medium text-slate-900 text-right">{v}</dd>
-            </div>
-          ))}
-        </dl>
-      </div>
       {data.notes && (
-        <div className="md:col-span-2">
-          <h3 className="text-sm font-semibold text-slate-700 mb-3">Notes</h3>
-          <p className="text-sm text-slate-600 bg-slate-50 rounded-xl p-4 whitespace-pre-wrap">{data.notes}</p>
+        <div className="bg-white rounded-2xl border border-slate-200 p-6">
+          <h3 className="text-sm font-semibold text-slate-700 mb-2">Notes</h3>
+          <p className="text-sm text-slate-600 whitespace-pre-wrap">{data.notes}</p>
         </div>
-      )}
-    </div>
-  );
-}
-
-function EPBreakdownTab({ breakdown }: { breakdown: EPBreakdownItem[] }) {
-  if (!breakdown.length) {
-    return <p className="text-sm text-slate-500">No breakdown data available for this assessment.</p>;
-  }
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <DataSourceLegend />
-        <ProvenanceSummary items={breakdown} />
-      </div>
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="text-left border-b border-slate-200">
-            <th className="pb-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Factor</th>
-            <th className="pb-2 text-xs font-semibold text-slate-500 uppercase tracking-wide text-center">Weight</th>
-            <th className="pb-2 text-xs font-semibold text-slate-500 uppercase tracking-wide text-center">Score</th>
-            <th className="pb-2 text-xs font-semibold text-slate-500 uppercase tracking-wide text-center">Weighted</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {breakdown.map((item) => (
-            <tr key={item.factor}>
-              <td className="py-3">
-                <p className="font-medium text-slate-900">{item.factor}</p>
-                <p className="text-xs text-slate-400 mt-0.5">{item.rationale}</p>
-                <DataSourceLabel source={item.source} dataKind={item.dataKind} vintage={item.vintage} fetchedAt={item.fetchedAt} isLive={item.isLive} />
-              </td>
-              <td className="py-3 text-center text-slate-600">{(item.weight * 100).toFixed(0)}%</td>
-              <td className="py-3 text-center">
-                <span
-                  className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
-                    item.rawScore >= 80
-                      ? "bg-green-100 text-green-700"
-                      : item.rawScore >= 60
-                        ? "bg-yellow-100 text-yellow-700"
-                        : "bg-red-100 text-red-700"
-                  }`}
-                >
-                  {item.rawScore}
-                </span>
-              </td>
-              <td className="py-3 text-center font-semibold text-slate-900">{item.weightedScore}</td>
-            </tr>
-          ))}
-        </tbody>
-        <tfoot>
-          <tr className="border-t-2 border-slate-200">
-            <td colSpan={3} className="pt-3 text-right font-semibold text-slate-700 pr-4">
-              Total EP Score
-            </td>
-            <td className="pt-3 text-center font-bold text-xl text-slate-900">
-              {breakdown.reduce((s, i) => s + i.weightedScore, 0)}
-            </td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>
-  );
-}
-
-function FIPBreakdownTab({
-  breakdown,
-  currency,
-  years,
-}: {
-  breakdown: FIPBreakdownItem[];
-  currency: string;
-  years: {
-    year1Local: number;
-    year3Local: number;
-    year5Local: number;
-    year1Inr: number;
-    year3Inr: number;
-    year5Inr: number;
-  };
-}) {
-  return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-3 gap-4 text-center">
-        {[
-          { label: "Year 1", local: years.year1Local, inr: years.year1Inr },
-          { label: "Year 3", local: years.year3Local, inr: years.year3Inr },
-          { label: "Year 5", local: years.year5Local, inr: years.year5Inr },
-        ].map(({ label, local, inr }) => (
-          <div key={label} className="bg-slate-50 rounded-xl p-4">
-            <p className="text-xs text-slate-500 font-medium">{label}</p>
-            <p className="text-xl font-bold text-slate-900 mt-1">{formatCurrency(local, currency)}</p>
-            <p className="text-xs text-slate-400">{formatInr(inr)}</p>
-          </div>
-        ))}
-      </div>
-
-      {breakdown.length === 0 ? (
-        <p className="text-sm text-slate-500">No breakdown data available for this assessment.</p>
-      ) : (
-        <>
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <DataSourceLegend />
-          <ProvenanceSummary items={breakdown} />
-        </div>
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left border-b border-slate-200">
-              <th className="pb-2 text-xs font-semibold text-slate-500 uppercase tracking-wide">Component</th>
-              <th className="pb-2 text-xs font-semibold text-slate-500 uppercase tracking-wide text-right">Value</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {breakdown.map((item) => (
-              <tr key={item.component}>
-                <td className="py-3">
-                  <p className="font-medium text-slate-900">{item.component}</p>
-                  <p className="text-xs text-slate-400 mt-0.5">{item.rationale}</p>
-                  <DataSourceLabel source={item.source} dataKind={item.dataKind} vintage={item.vintage} fetchedAt={item.fetchedAt} isLive={item.isLive} />
-                  {item.confidence && (
-                    <p className="text-xs text-slate-500 mt-1">
-                      P25–P75: {item.confidence.unit ?? ""}{" "}
-                      {item.confidence.p25.toLocaleString()} – {item.confidence.p75.toLocaleString()}
-                      {item.confidence.sampleSize ? ` (n=${item.confidence.sampleSize.toLocaleString()})` : ""}
-                    </p>
-                  )}
-                </td>
-                <td className="py-3 text-right font-semibold text-slate-900">
-                  {item.type === "base" ? formatCurrency(item.value, currency) : `× ${item.value.toFixed(2)}`}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </>
       )}
     </div>
   );

@@ -1,9 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/db";
-import { computeEP, computeFIP } from "@/lib/scoring/engine";
+import { computeEP, computeFIP, computeLTI } from "@/lib/scoring/engine";
 import { METHODOLOGY_VERSION } from "@/lib/scoring/methodology";
 import type { AssessmentInput } from "@/lib/scoring/types";
+
+// Build a complete AssessmentInput from a stored record so we can re-run
+// the scoring engine and recover the derived fields that aren't persisted
+// (returnScenario, visaInfo, year1 confidence bands, fx, dataSource, lti).
+function toAssessmentInput(r: {
+  studentName: string; undergradInstitution: string; undergradTier: string;
+  undergradDegree: string; undergradMajor: string; undergradCgpa: number;
+  greScore: number | null; gmatScore: number | null; workExperienceYears: number;
+  destinationCountry: string; destinationUniversity: string; targetDegree: string;
+  targetCourse: string; isStem: boolean; programDurationMonths: number;
+  targetCity: string | null; loanAmountInr: number | null;
+  nationality?: string | null;
+}): AssessmentInput {
+  return {
+    studentName: r.studentName,
+    nationality: r.nationality ?? "Indian",
+    undergradInstitution: r.undergradInstitution,
+    undergradTier: r.undergradTier,
+    undergradDegree: r.undergradDegree,
+    undergradMajor: r.undergradMajor,
+    undergradCgpa: r.undergradCgpa,
+    greScore: r.greScore ?? undefined,
+    gmatScore: r.gmatScore ?? undefined,
+    workExperienceYears: r.workExperienceYears,
+    destinationCountry: r.destinationCountry,
+    destinationUniversity: r.destinationUniversity,
+    targetDegree: r.targetDegree,
+    targetCourse: r.targetCourse,
+    isStem: r.isStem,
+    programDurationMonths: r.programDurationMonths,
+    targetCity: r.targetCity ?? undefined,
+    loanAmountInr: r.loanAmountInr ?? undefined,
+  };
+}
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
@@ -21,7 +55,23 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ ...assessment, methodologyVersion: METHODOLOGY_VERSION });
+  // Re-run scoring so the detail page can render returnScenario, visaInfo,
+  // confidence bands, fx, dataSource, lti — none of which are persisted. The
+  // persisted scalars (epScore, fipYear1Local, …) remain available for
+  // historical reference via the raw record fields.
+  const input = toAssessmentInput(assessment);
+  const [ep, fip] = await Promise.all([computeEP(input), computeFIP(input)]);
+  const lti = assessment.loanAmountInr
+    ? computeLTI(assessment.loanAmountInr, fip.year1Inr, fip.year3Inr)
+    : undefined;
+
+  return NextResponse.json({
+    ...assessment,
+    ep,
+    fip,
+    lti,
+    methodologyVersion: METHODOLOGY_VERSION,
+  });
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
