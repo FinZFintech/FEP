@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { AssessmentForm } from "./assessment-form";
 import { ResultCard } from "./result-card";
-import type { EPResult, FIPResult } from "@/lib/scoring/types";
+import type { EPResult, FIPResult, LoanToIncomeResult } from "@/lib/scoring/types";
 
 interface AssessmentResponse {
   id: string;
   ep: EPResult;
   fip: FIPResult;
+  lti?: LoanToIncomeResult;
 }
 
 export default function AssessPage() {
