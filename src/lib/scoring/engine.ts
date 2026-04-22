@@ -6,6 +6,7 @@ import universitiesData from "./lookups/universities.json";
 import coursesData from "./lookups/courses.json";
 import countriesData from "./lookups/countries.json";
 import undergradTiersData from "./lookups/undergrad-tiers.json";
+import nationalitiesData from "./lookups/nationalities.json";
 
 type CourseKey = keyof typeof coursesData.courses;
 type CountryKey = keyof typeof countriesData.countries;
@@ -35,6 +36,34 @@ function getCountryData(country: string) {
 function getTierData(tier: string) {
   const tierMap = undergradTiersData.tiers as Record<string, (typeof undergradTiersData.tiers)[TierKey]>;
   return tierMap[tier] ?? tierMap["OTHERS"];
+}
+
+interface NationalityDestData {
+  salaryAdjustment: number;
+  employabilityAdjustment: number;
+  employerSponsorshipRate: number;
+  avgMonthsToEmployment: number;
+  source: string;
+  visaType?: string;
+  postStudyWorkMonthsStem?: number;
+  postStudyWorkMonthsNonStem?: number;
+  h1bLotteryProbGeneral?: number | null;
+  h1bLotteryProbMasters?: number | null;
+  notes?: string;
+  topEmployers?: string[];
+  employerTierSplit?: Record<string, { pct: number; salaryMultiplier: number }>;
+}
+
+function getNationalityData(nationality: string, country: string): NationalityDestData | null {
+  const natMap = nationalitiesData.nationalities as Record<string, { destinations: Record<string, NationalityDestData> }>;
+  const natData = natMap[nationality];
+  if (!natData) return null;
+  return natData.destinations[country] ?? null;
+}
+
+function getReturnSalaryMultiplier(nationality: string): number {
+  const natMap = nationalitiesData.nationalities as Record<string, { returnCountrySalaryMultiplier: number }>;
+  return natMap[nationality]?.returnCountrySalaryMultiplier ?? 0.25;
 }
 
 function cgpaScore(cgpa: number, baseline: number): number {
@@ -115,6 +144,9 @@ function getExchangeRate(currency: string): number {
     CAD: parseFloat(process.env.INR_PER_CAD ?? "61.5"),
     AUD: parseFloat(process.env.INR_PER_AUD ?? "54.0"),
     EUR: parseFloat(process.env.INR_PER_EUR ?? "90.0"),
+    NZD: parseFloat(process.env.INR_PER_NZD ?? "50.0"),
+    SGD: parseFloat(process.env.INR_PER_SGD ?? "62.0"),
+    SEK: parseFloat(process.env.INR_PER_SEK ?? "7.8"),
   };
   return rates[currency] ?? 83.5;
 }
@@ -166,6 +198,21 @@ export async function computeEP(input: AssessmentInput): Promise<EPResult> {
         }
       }
     } catch { /* Scorecard unavailable, continue */ }
+  }
+
+  // Nationality-specific adjustments
+  const natData = getNationalityData(input.nationality ?? "Indian", input.destinationCountry);
+  const natEpAdj = natData?.employabilityAdjustment ?? 0;
+  let natNote = "";
+  let natSource = "";
+  if (natData && natEpAdj !== 0) {
+    natNote = ` | ${input.nationality ?? "Indian"} national: visa/sponsorship adjustment (${natEpAdj > 0 ? "+" : ""}${natEpAdj})`;
+    natSource = natData.source;
+
+    if (input.destinationCountry === "US" && natData.h1bLotteryProbMasters) {
+      const lotteryProb = input.targetDegree?.toUpperCase() === "PHD" ? 0.95 : natData.h1bLotteryProbMasters;
+      natNote += ` | H1B lottery: ~${Math.round(lotteryProb * 100)}% selection rate`;
+    }
   }
 
   const cgpa = cgpaScore(input.undergradCgpa, tierData.cgpaBaseline);
@@ -232,6 +279,17 @@ export async function computeEP(input: AssessmentInput): Promise<EPResult> {
       source: "Internal model",
     },
   ];
+
+  if (natEpAdj !== 0) {
+    breakdown.push({
+      factor: "Nationality / Visa Adjustment",
+      weight: 0,
+      rawScore: natEpAdj,
+      weightedScore: natEpAdj,
+      rationale: `${input.nationality ?? "Indian"} national in ${countryData.name}${natNote}`,
+      source: natSource || "Immigration statistics 2024",
+    });
+  }
 
   const totalScore = Math.min(100, breakdown.reduce((sum, item) => sum + item.weightedScore, 0));
   const { band, color } = getRiskBand(totalScore);
@@ -416,14 +474,73 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
     Ireland: "CSO Ireland Labour Force Survey | IDA Ireland wage benchmarks",
   };
 
+  // Nationality-specific salary adjustment + return scenario
+  const fipNatData = getNationalityData(input.nationality ?? "Indian", input.destinationCountry);
+  const natSalaryAdj = fipNatData?.salaryAdjustment ?? 1.0;
+  const adjYear1 = Math.round(year1 * natSalaryAdj);
+  const adjYear3 = Math.round(year3 * natSalaryAdj);
+  const adjYear5 = Math.round(year5 * natSalaryAdj);
+
+  if (natSalaryAdj !== 1.0) {
+    breakdown.push({
+      component: "Nationality Salary Adjustment",
+      value: natSalaryAdj,
+      type: "multiplier",
+      rationale: `${input.nationality ?? "Indian"} nationals earn ~${Math.round((1 - natSalaryAdj) * 100)}% less than domestic graduates on average (visa status, sponsorship constraints)`,
+      source: fipNatData?.source ?? "Immigration salary statistics 2024",
+    });
+  }
+
+  // Return-to-home-country scenario
+  const returnMultiplier = getReturnSalaryMultiplier(input.nationality ?? "Indian");
+  const returnYear1 = Math.round(adjYear1 * exchangeRate * returnMultiplier);
+  const returnYear3 = Math.round(returnYear1 * 1.20);
+  const returnYear5 = Math.round(returnYear1 * 1.45);
+
+  let returnProbability = 0.30;
+  let returnRationale = "Estimated based on immigration patterns";
+  if (input.destinationCountry === "US" && fipNatData?.h1bLotteryProbMasters) {
+    const lotteryProb = input.targetDegree?.toUpperCase() === "PHD" ? 0.95 : fipNatData.h1bLotteryProbMasters;
+    returnProbability = 1 - (lotteryProb * (fipNatData.employerSponsorshipRate ?? 0.72));
+    returnRationale = `H1B lottery ~${Math.round(lotteryProb * 100)}% × sponsorship rate ${Math.round((fipNatData.employerSponsorshipRate ?? 0.72) * 100)}% → ${Math.round((1 - returnProbability) * 100)}% stay-abroad probability`;
+  } else if (fipNatData) {
+    returnProbability = 1 - (fipNatData.employerSponsorshipRate ?? 0.60);
+    returnRationale = `Employer sponsorship rate: ${Math.round((fipNatData.employerSponsorshipRate ?? 0.60) * 100)}% in ${getCountryData(input.destinationCountry).name}`;
+  }
+
+  // Visa info
+  let visaInfo: FIPResult["visaInfo"] = undefined;
+  if (fipNatData) {
+    const postStudyMonths = input.isStem
+      ? (fipNatData.postStudyWorkMonthsStem ?? 12)
+      : (fipNatData.postStudyWorkMonthsNonStem ?? 12);
+
+    visaInfo = {
+      visaType: fipNatData.visaType ?? "Student → Work Permit",
+      postStudyMonths,
+      h1bLotteryProb: fipNatData.h1bLotteryProbMasters ?? undefined,
+      sponsorshipRate: fipNatData.employerSponsorshipRate,
+      notes: fipNatData.notes ?? "",
+      source: fipNatData.source,
+    };
+  }
+
   return {
     currency: countryData.currency,
-    year1Local: year1,
-    year3Local: year3,
-    year5Local: year5,
-    year1Inr: Math.round(year1 * exchangeRate),
-    year3Inr: Math.round(year3 * exchangeRate),
-    year5Inr: Math.round(year5 * exchangeRate),
+    year1Local: adjYear1,
+    year3Local: adjYear3,
+    year5Local: adjYear5,
+    year1Inr: Math.round(adjYear1 * exchangeRate),
+    year3Inr: Math.round(adjYear3 * exchangeRate),
+    year5Inr: Math.round(adjYear5 * exchangeRate),
+    returnScenario: {
+      year1Inr: returnYear1,
+      year3Inr: returnYear3,
+      year5Inr: returnYear5,
+      probability: returnProbability,
+      rationale: returnRationale,
+    },
+    visaInfo,
     breakdown,
     dataSource: dataSourceMap[input.destinationCountry] ?? "OECD Education at a Glance 2024",
   };

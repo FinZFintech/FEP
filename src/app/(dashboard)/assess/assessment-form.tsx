@@ -3,7 +3,14 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
-const COUNTRIES = ["US", "UK", "Canada", "Australia", "Germany", "France", "Ireland"];
+const COUNTRIES = ["US", "UK", "Canada", "Australia", "Germany", "France", "Ireland", "New Zealand", "Netherlands", "Singapore", "Sweden"];
+const NATIONALITIES = [
+  { value: "Indian", label: "Indian" },
+  { value: "Nepali", label: "Nepali" },
+  { value: "Bangladeshi", label: "Bangladeshi" },
+  { value: "Sri Lankan", label: "Sri Lankan" },
+  { value: "Pakistani", label: "Pakistani" },
+];
 const UNDERGRAD_TIERS = [
   { value: "IIT", label: "IIT (Indian Institutes of Technology)" },
   { value: "IIM", label: "IIM (Indian Institutes of Management)" },
@@ -35,6 +42,7 @@ interface FormProps {
 export function AssessmentForm({ onSubmit, loading }: FormProps) {
   const [form, setForm] = useState({
     studentName: "",
+    nationality: "Indian",
     undergradInstitution: "",
     undergradTier: "NIT",
     undergradDegree: "B.Tech",
@@ -65,6 +73,7 @@ export function AssessmentForm({ onSubmit, loading }: FormProps) {
 
     onSubmit({
       studentName: form.studentName,
+      nationality: form.nationality,
       undergradInstitution: form.undergradInstitution,
       undergradTier: form.undergradTier,
       undergradDegree: form.undergradDegree,
@@ -101,6 +110,12 @@ export function AssessmentForm({ onSubmit, loading }: FormProps) {
             <label className={labelClass}>Student Name *</label>
             <input className={inputClass} required value={form.studentName}
               onChange={e => set("studentName", e.target.value)} placeholder="e.g. Rahul Sharma" />
+          </div>
+          <div>
+            <label className={labelClass}>Nationality *</label>
+            <select className={inputClass} value={form.nationality} onChange={e => set("nationality", e.target.value)}>
+              {NATIONALITIES.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
+            </select>
           </div>
           <div>
             <label className={labelClass}>Undergrad Institution *</label>

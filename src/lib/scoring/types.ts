@@ -1,5 +1,6 @@
 export interface AssessmentInput {
   studentName: string;
+  nationality: string;
   undergradInstitution: string;
   undergradTier: string;
   undergradDegree: string;
@@ -51,6 +52,21 @@ export interface FIPResult {
   year1Inr: number;
   year3Inr: number;
   year5Inr: number;
+  returnScenario?: {
+    year1Inr: number;
+    year3Inr: number;
+    year5Inr: number;
+    probability: number;
+    rationale: string;
+  };
+  visaInfo?: {
+    visaType: string;
+    postStudyMonths: number;
+    h1bLotteryProb?: number;
+    sponsorshipRate: number;
+    notes: string;
+    source: string;
+  };
   breakdown: FIPBreakdownItem[];
   dataSource: string;
 }
