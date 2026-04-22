@@ -9,9 +9,18 @@
  * Results persisted in the database carry the version that produced them,
  * so historical assessments remain reproducible even after a recalibration.
  */
-export const METHODOLOGY_VERSION = "2026.04.3";
+export const METHODOLOGY_VERSION = "2026.04.4";
 
 export const METHODOLOGY_CHANGELOG: { version: string; date: string; summary: string }[] = [
+  {
+    version: "2026.04.4",
+    date: "2026-04-22",
+    summary:
+      "UK base salary upgraded: live Nomis ASHE NM_30_1 (gross annual pay by SOC 2020, " +
+      "median + P25/P75) with SNAPSHOT fallback. All other non-US embedded salary tables " +
+      "reclassified from HEURISTIC to SNAPSHOT with primary-source vintage tags " +
+      "(HESA LEO 2022-23, StatCan LFS 2024, QILT GOS 2024, OECD EAG 2024, etc.).",
+  },
   {
     version: "2026.04.3",
     date: "2026-04-22",

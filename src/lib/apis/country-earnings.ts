@@ -189,6 +189,9 @@ export interface CountryEarningsData {
   median5yr: number;
   currency: string;
   source: string;
+  /** Survey/publication reference period (e.g. "2022-23", "2024"). Drives the
+   *  SNAPSHOT badge and stale-warning in the UI — absent = heuristic. */
+  vintage: string;
 }
 
 const NEW_ZEALAND_GRADUATE_EARNINGS: Record<string, { median1yr: number; median3yr: number; median5yr: number }> = {
@@ -249,17 +252,18 @@ const COUNTRY_DATA: Record<string, {
   data: Record<string, { median1yr: number; median3yr: number; median5yr: number }>;
   currency: string;
   source: string;
+  vintage: string;
 }> = {
-  UK: { data: UK_GRADUATE_EARNINGS, currency: "GBP", source: "HESA LEO Graduate Outcomes 2022-23 + ONS Labour Market Statistics" },
-  Canada: { data: CANADA_GRADUATE_EARNINGS, currency: "CAD", source: "Statistics Canada Labour Force Survey 2024 + PCEIP" },
-  Australia: { data: AUSTRALIA_GRADUATE_EARNINGS, currency: "AUD", source: "QILT Graduate Outcomes Survey 2024 + ABS Labour Force Survey" },
-  Germany: { data: GERMANY_GRADUATE_EARNINGS, currency: "EUR", source: "OECD Education at a Glance 2024 + Bundesagentur fur Arbeit" },
-  France: { data: FRANCE_GRADUATE_EARNINGS, currency: "EUR", source: "OECD Education at a Glance 2024 + INSEE Employment Survey" },
-  Ireland: { data: IRELAND_GRADUATE_EARNINGS, currency: "EUR", source: "CSO Ireland Labour Force Survey 2024 + IDA Ireland" },
-  "New Zealand": { data: NEW_ZEALAND_GRADUATE_EARNINGS, currency: "NZD", source: "Education New Zealand Graduate Outcomes 2024" },
-  Netherlands: { data: NETHERLANDS_GRADUATE_EARNINGS, currency: "EUR", source: "CBS Netherlands Labour Force Survey 2024 + Nuffic" },
-  Singapore: { data: SINGAPORE_GRADUATE_EARNINGS, currency: "SGD", source: "Singapore MOM Employment Statistics 2024" },
-  Sweden: { data: SWEDEN_GRADUATE_EARNINGS, currency: "SEK", source: "Swedish Higher Education Authority 2024 + SCB" },
+  UK: { data: UK_GRADUATE_EARNINGS, currency: "GBP", source: "HESA LEO Graduate Outcomes + ONS ASHE (embedded)", vintage: "2022-23" },
+  Canada: { data: CANADA_GRADUATE_EARNINGS, currency: "CAD", source: "Statistics Canada LFS 2024 + PCEIP (embedded)", vintage: "2024" },
+  Australia: { data: AUSTRALIA_GRADUATE_EARNINGS, currency: "AUD", source: "QILT Graduate Outcomes Survey 2024 + ABS LFS (embedded)", vintage: "2024" },
+  Germany: { data: GERMANY_GRADUATE_EARNINGS, currency: "EUR", source: "OECD EAG 2024 + Bundesagentur für Arbeit (embedded)", vintage: "2024" },
+  France: { data: FRANCE_GRADUATE_EARNINGS, currency: "EUR", source: "OECD EAG 2024 + INSEE Emploi (embedded)", vintage: "2024" },
+  Ireland: { data: IRELAND_GRADUATE_EARNINGS, currency: "EUR", source: "CSO Ireland LFS 2024 + IDA Ireland (embedded)", vintage: "2024" },
+  "New Zealand": { data: NEW_ZEALAND_GRADUATE_EARNINGS, currency: "NZD", source: "Tertiary Education Commission GOS 2024 (embedded)", vintage: "2024" },
+  Netherlands: { data: NETHERLANDS_GRADUATE_EARNINGS, currency: "EUR", source: "CBS Netherlands LFS 2024 + Nuffic (embedded)", vintage: "2024" },
+  Singapore: { data: SINGAPORE_GRADUATE_EARNINGS, currency: "SGD", source: "Singapore MOM Occupational Wages 2024 (embedded)", vintage: "2024" },
+  Sweden: { data: SWEDEN_GRADUATE_EARNINGS, currency: "SEK", source: "SCB Lönestrukturstatistik 2024 + UKÄ (embedded)", vintage: "2024" },
 };
 
 export function getCountryEarnings(country: string, course: string): CountryEarningsData | null {
@@ -277,6 +281,7 @@ export function getCountryEarnings(country: string, course: string): CountryEarn
     median5yr: earnings.median5yr,
     currency: countryInfo.currency,
     source: countryInfo.source,
+    vintage: countryInfo.vintage,
   };
 }
 

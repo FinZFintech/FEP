@@ -25,5 +25,8 @@ export type { EurostatGrowthData } from "./eurostat";
 export { getAustraliaWageGrowth } from "./abs";
 export type { AbsGrowthData } from "./abs";
 
+export { getNomisEarnings } from "./nomis";
+export type { NomisEarningsData } from "./nomis";
+
 export { getOccupationCodes, OCCUPATION_CROSSWALK } from "./crosswalks/occupations";
 export type { OccupationCodes } from "./crosswalks/occupations";
