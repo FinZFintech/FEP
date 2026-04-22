@@ -1,0 +1,48 @@
+name: Calibration smoke-test
+
+# Nightly smoke-test that runs four canonical assessment profiles through the
+# scoring engine and asserts EP score + Year-1 local salary stay inside
+# sensible bounds. Fails loudly when the engine drifts (e.g. after a
+# heuristic tweak or a live source returning unexpected values).
+#
+# Also runs on every push/PR touching scoring, data, or scripts — that way
+# a bad calibration tweak is caught at review time, not the next morning.
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src/lib/scoring/**"
+      - "src/lib/apis/**"
+      - "scripts/calibration-check.ts"
+  pull_request:
+    paths:
+      - "src/lib/scoring/**"
+      - "src/lib/apis/**"
+      - "scripts/calibration-check.ts"
+
+jobs:
+  calibration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Run calibration smoke-test
+        env:
+          # Dummy URL so any transitive Prisma instantiation doesn't fail.
+          # The calibration script does not actually query the database.
+          DATABASE_URL: "postgresql://user:pass@localhost:5432/fep?schema=public"
+        run: npx tsx scripts/calibration-check.ts

@@ -1,0 +1,70 @@
+name: H1B LCA snapshot refresh
+
+# Weekly refresh of the embedded H1B snapshot in src/lib/apis/h1b.ts using the
+# DOL OFLC quarterly disclosure CSV. Runs Sunday 03:00 UTC. Opens a PR with
+# the diff instead of pushing straight to main — a human approves the new
+# numbers before they ship to production.
+#
+# Manual runs: Actions → H1B LCA snapshot refresh → Run workflow.
+# Override fiscal year / quarter via workflow_dispatch inputs when the
+# auto-detected URL is wrong (e.g. when a new quarter hasn't been published).
+
+on:
+  schedule:
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
+    inputs:
+      fy:
+        description: "Fiscal year (e.g. 2026)"
+        required: false
+        default: ""
+      quarter:
+        description: "Quarter 1-4"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Refresh H1B snapshot
+        run: |
+          ARGS=""
+          if [ -n "${{ inputs.fy }}" ]; then ARGS="$ARGS --fy=${{ inputs.fy }}"; fi
+          if [ -n "${{ inputs.quarter }}" ]; then ARGS="$ARGS --quarter=${{ inputs.quarter }}"; fi
+          npx tsx scripts/refresh-h1b.ts $ARGS
+
+      - name: Open PR with refreshed snapshot
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: automated/h1b-refresh
+          delete-branch: true
+          commit-message: "chore(data): auto-refresh H1B LCA snapshot"
+          title: "chore(data): auto-refresh H1B LCA snapshot"
+          body: |
+            Automated refresh of `src/lib/apis/h1b.ts` from the DOL OFLC
+            LCA disclosure CSV.
+
+            Review the diff to sanity-check median / P25 / P75 movements
+            before merging. Unusual jumps (e.g. >15% in one quarter) may
+            indicate a CSV schema change and warrant manual investigation
+            of `scripts/refresh-h1b.ts` before accepting.
+          labels: |
+            data-refresh
+            automated
