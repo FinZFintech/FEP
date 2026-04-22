@@ -341,7 +341,7 @@ function EPBreakdownTab({ breakdown }: { breakdown: EPBreakdownItem[] }) {
               <td className="py-3">
                 <p className="font-medium text-slate-900">{item.factor}</p>
                 <p className="text-xs text-slate-400 mt-0.5">{item.rationale}</p>
-                <DataSourceLabel source={item.source} isLive={item.isLive} />
+                <DataSourceLabel source={item.source} dataKind={item.dataKind} vintage={item.vintage} isLive={item.isLive} />
               </td>
               <td className="py-3 text-center text-slate-600">{(item.weight * 100).toFixed(0)}%</td>
               <td className="py-3 text-center">
@@ -426,7 +426,7 @@ function FIPBreakdownTab({
                 <td className="py-3">
                   <p className="font-medium text-slate-900">{item.component}</p>
                   <p className="text-xs text-slate-400 mt-0.5">{item.rationale}</p>
-                  <DataSourceLabel source={item.source} isLive={item.isLive} />
+                  <DataSourceLabel source={item.source} dataKind={item.dataKind} vintage={item.vintage} isLive={item.isLive} />
                 </td>
                 <td className="py-3 text-right font-semibold text-slate-900">
                   {item.type === "base" ? formatCurrency(item.value, currency) : `× ${item.value.toFixed(2)}`}
