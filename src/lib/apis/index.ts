@@ -31,5 +31,8 @@ export type { NomisEarningsData } from "./nomis";
 export { getCensusGradMultiplier, CENSUS_SUPPORTED_CITIES } from "./census";
 export type { CensusMultiplierResult } from "./census";
 
+export { getAdzunaSalary, ADZUNA_SUPPORTED_COUNTRIES } from "./adzuna";
+export type { AdzunaSalaryData } from "./adzuna";
+
 export { getOccupationCodes, OCCUPATION_CROSSWALK } from "./crosswalks/occupations";
 export type { OccupationCodes } from "./crosswalks/occupations";
