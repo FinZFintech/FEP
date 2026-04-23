@@ -9,9 +9,19 @@
  * Results persisted in the database carry the version that produced them,
  * so historical assessments remain reproducible even after a recalibration.
  */
-export const METHODOLOGY_VERSION = "2026.04.6";
+export const METHODOLOGY_VERSION = "2026.04.7";
 
 export const METHODOLOGY_CHANGELOG: { version: string; date: string; summary: string }[] = [
+  {
+    version: "2026.04.7",
+    date: "2026-04-22",
+    summary:
+      "US labor-market tightness signal added to EP from FRED JTSJOL (JOLTS " +
+      "job openings): +/-3 adjustment on country employment row when 3-mo MA " +
+      "is outside 0.90–1.05× 12-mo median. H1B lottery probability refined via " +
+      "USCIS H-1B Employer Data Hub FY2024 aggregate (27% selection × 97% " +
+      "post-selection approval ≈ 26% net for master's cap); PhD path unchanged.",
+  },
   {
     version: "2026.04.6",
     date: "2026-04-22",

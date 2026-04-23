@@ -7,7 +7,7 @@ import type {
   LoanToIncomeResult,
   ConfidenceRange,
 } from "./types";
-import { getSchoolEarnings, getProgramEarnings, getOccupationWages, getOccupationGrowth, getH1BSalary, getOccupationDetails, getUsWageGrowth, getUkWageGrowth, getCanadaWageGrowth, getEuWageGrowth, getAustraliaWageGrowth, EUROSTAT_SUPPORTED_COUNTRIES, getOccupationCodes } from "../apis";
+import { getSchoolEarnings, getProgramEarnings, getOccupationWages, getOccupationGrowth, getH1BSalary, getOccupationDetails, getUsWageGrowth, getUkWageGrowth, getCanadaWageGrowth, getEuWageGrowth, getAustraliaWageGrowth, EUROSTAT_SUPPORTED_COUNTRIES, getOccupationCodes, getUsJoltsSignal, getUscisH1BSnapshot } from "../apis";
 import { getNomisEarnings } from "../apis/nomis";
 import { getCensusGradMultiplier } from "../apis/census";
 import { getAdzunaSalary } from "../apis/adzuna";
@@ -214,6 +214,28 @@ export async function computeEP(input: AssessmentInput): Promise<EPResult> {
     } catch { /* Scorecard unavailable, continue */ }
   }
 
+  // Live API: FRED JOLTS labor-market tightness (US only). +3 when the 3-mo MA
+  // of total-nonfarm openings is > 1.05× its 12-mo median; -3 when < 0.90×;
+  // else 0. Gives EP a macro signal that moves with the cycle rather than the
+  // fixed country-level employment rate alone.
+  let joltsBonus = 0;
+  let joltsNote = "";
+  let joltsSourceLine = "";
+  let joltsFetchedAt: string | undefined;
+  if (input.destinationCountry === "US") {
+    try {
+      const jolts = await getUsJoltsSignal();
+      if (jolts) {
+        joltsBonus = jolts.band === "hot" ? 3 : jolts.band === "cold" ? -3 : 0;
+        if (joltsBonus !== 0) {
+          joltsNote = ` | US labor market ${jolts.band} (JOLTS tightness ${jolts.tightness.toFixed(2)}×, ${joltsBonus > 0 ? "+" : ""}${joltsBonus})`;
+        }
+        joltsSourceLine = jolts.source;
+        joltsFetchedAt = jolts.fetchedAt;
+      }
+    } catch { /* FRED unavailable, continue */ }
+  }
+
   // Nationality-specific adjustments
   const natData = getNationalityData(input.nationality ?? "Indian", input.destinationCountry);
   const natEpAdj = natData?.employabilityAdjustment ?? 0;
@@ -289,12 +311,16 @@ export async function computeEP(input: AssessmentInput): Promise<EPResult> {
     {
       factor: "Destination Country Employment Rate",
       weight: 0.15,
-      rawScore: countryEmployment,
-      weightedScore: Math.round(countryEmployment * 0.15),
-      rationale: `${countryData.gradEmploymentRate * 100}% graduate employment rate in ${countryData.name}`,
-      source: `${countryEmploymentSource.src} (embedded)`,
-      dataKind: "snapshot",
-      vintage: countryEmploymentSource.vintage,
+      rawScore: Math.min(100, Math.max(0, countryEmployment + joltsBonus)),
+      weightedScore: Math.round(Math.min(100, Math.max(0, countryEmployment + joltsBonus)) * 0.15),
+      rationale: `${countryData.gradEmploymentRate * 100}% graduate employment rate in ${countryData.name}${joltsNote}`,
+      source:
+        joltsSourceLine
+          ? `${countryEmploymentSource.src} (embedded) + ${joltsSourceLine}`
+          : `${countryEmploymentSource.src} (embedded)`,
+      dataKind: joltsSourceLine ? "live" : "snapshot",
+      vintage: joltsSourceLine ? undefined : countryEmploymentSource.vintage,
+      fetchedAt: joltsFetchedAt,
     },
     {
       factor: "STEM / Visa Advantage",
@@ -777,13 +803,25 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
       ? (fipNatData.postStudyWorkMonthsStem ?? 12)
       : (fipNatData.postStudyWorkMonthsNonStem ?? 12);
 
+    // For US destinations, overlay the h1bLotteryProb with the latest USCIS
+    // Employer Data Hub aggregate (post-beneficiary-centric-process reform).
+    // PhD cap still uses the historical ~95% convention since PhDs bypass the
+    // lottery via O-1 / NIW pathways more often.
+    let h1bProb = fipNatData.h1bLotteryProbMasters ?? undefined;
+    let source = fipNatData.source;
+    if (input.destinationCountry === "US" && input.targetDegree?.toUpperCase() !== "PHD") {
+      const uscis = getUscisH1BSnapshot();
+      h1bProb = uscis.netMastersCapProbability;
+      source = `${fipNatData.source} | H1B selection refined by ${uscis.source}`;
+    }
+
     visaInfo = {
       visaType: fipNatData.visaType ?? "Student → Work Permit",
       postStudyMonths,
-      h1bLotteryProb: fipNatData.h1bLotteryProbMasters ?? undefined,
+      h1bLotteryProb: h1bProb,
       sponsorshipRate: fipNatData.employerSponsorshipRate,
       notes: fipNatData.notes ?? "",
-      source: fipNatData.source,
+      source,
     };
   }
 
