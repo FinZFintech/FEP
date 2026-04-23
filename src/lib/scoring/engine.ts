@@ -10,6 +10,7 @@ import type {
 import { getSchoolEarnings, getProgramEarnings, getOccupationWages, getOccupationGrowth, getH1BSalary, getOccupationDetails, getUsWageGrowth, getUkWageGrowth, getCanadaWageGrowth, getEuWageGrowth, getAustraliaWageGrowth, EUROSTAT_SUPPORTED_COUNTRIES, getOccupationCodes } from "../apis";
 import { getNomisEarnings } from "../apis/nomis";
 import { getCensusGradMultiplier } from "../apis/census";
+import { getAdzunaSalary } from "../apis/adzuna";
 import { getCountryEarnings } from "../apis/country-earnings";
 import { getExchangeRate as getLiveExchangeRate } from "../apis/fx";
 
@@ -421,17 +422,20 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
       baseSalaryVintage = "2024-25";
     }
   } else {
-    // Non-US: resolve base salary in two tiers.
+    // Non-US: resolve base salary in three tiers.
     //
     // Tier 1 — LIVE (UK only): ONS/Nomis ASHE by SOC 2020 unit-group code.
-    //   Returns median + P25/P75 gross annual pay for the exact occupation.
-    //   Falls through to Tier 2 on failure or unsupported course.
+    //   Government survey, annual. Most authoritative source for UK.
     //
-    // Tier 2 — SNAPSHOT: country-earnings.ts embedded table. Each row cites
+    // Tier 2 — LIVE (Adzuna, when ADZUNA_APP_ID/KEY env vars set): median of
+    //   active job postings across 10 supported countries. Reflects current
+    //   market rate, updated within 7-day cache. Complements Nomis for UK,
+    //   primary live source for CA/AU/DE/FR/NL/SG/NZ/IN.
+    //
+    // Tier 3 — SNAPSHOT: country-earnings.ts embedded table. Each row cites
     //   a published survey (HESA LEO, StatCan LFS, QILT GOS, OECD EAG, etc.)
-    //   with a vintage year. Classified SNAPSHOT (not heuristic) because the
-    //   source and reference period are documented — only the live-fetch step
-    //   is missing.
+    //   with a vintage year. Classified SNAPSHOT because the source and
+    //   reference period are documented.
     let nonUsResolved = false;
 
     if (input.destinationCountry === "UK") {
@@ -447,6 +451,19 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
             baseSalaryConfidence = { p25: nomis.p25, p75: nomis.p75, unit: "GBP" };
             nonUsResolved = true;
           }
+        }
+      } catch { /* fall through to Tier 2 */ }
+    }
+
+    if (!nonUsResolved) {
+      try {
+        const adzuna = await getAdzunaSalary(input.destinationCountry, input.targetCourse);
+        if (adzuna) {
+          baseSalary = adzuna.medianSalary;
+          baseSalarySource = adzuna.source;
+          baseSalaryKind = "live";
+          baseSalaryFetchedAt = adzuna.fetchedAt;
+          nonUsResolved = true;
         }
       } catch { /* fall through to SNAPSHOT */ }
     }

@@ -9,9 +9,19 @@
  * Results persisted in the database carry the version that produced them,
  * so historical assessments remain reproducible even after a recalibration.
  */
-export const METHODOLOGY_VERSION = "2026.04.5";
+export const METHODOLOGY_VERSION = "2026.04.6";
 
 export const METHODOLOGY_CHANGELOG: { version: string; date: string; summary: string }[] = [
+  {
+    version: "2026.04.6",
+    date: "2026-04-22",
+    summary:
+      "Adzuna live salary integration: non-US base salary now tries Adzuna job-posting " +
+      "median across 10 countries (CA/AU/DE/FR/NL/SG/NZ/IN + GB/US fallback) as a " +
+      "second LIVE tier after Nomis (UK only). Falls back to country-earnings.ts " +
+      "SNAPSHOT when env vars ADZUNA_APP_ID/KEY are absent or for unsupported " +
+      "country/course combinations. Minimum sample 30 postings for a stable median.",
+  },
   {
     version: "2026.04.5",
     date: "2026-04-22",
