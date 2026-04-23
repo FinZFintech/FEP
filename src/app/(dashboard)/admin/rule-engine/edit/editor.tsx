@@ -150,7 +150,7 @@ export function RuleEngineEditor({ baselineVersion, baselineParameters }: Editor
 
   function update(path: (string | number)[], value: number) {
     setParams((prev) => {
-      const next = clone(prev) as Record<string, unknown>;
+      const next = clone(prev) as unknown as Record<string, unknown>;
       setAt(next, path, value);
       return next as unknown as RuleParameters;
     });
