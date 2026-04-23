@@ -9,9 +9,20 @@
  * Results persisted in the database carry the version that produced them,
  * so historical assessments remain reproducible even after a recalibration.
  */
-export const METHODOLOGY_VERSION = "2026.04.7";
+export const METHODOLOGY_VERSION = "2026.04.8";
 
 export const METHODOLOGY_CHANGELOG: { version: string; date: string; summary: string }[] = [
+  {
+    version: "2026.04.8",
+    date: "2026-04-22",
+    summary:
+      "Return-to-home scenario Y3/Y5 uplifts moved from fixed +20% / +45% " +
+      "heuristic to live World Bank WDI NY.GDP.PCAP.CD CAGR of the student's " +
+      "home country. Covers 14 home nationalities (IN/CN/PK/BD/LK/NP/NG/VN/ID/" +
+      "PH/BR/MX/KE/EG); falls back cleanly to the prior fixed uplifts on fetch " +
+      "failure or unsupported nationality. Return-to-home card now shows the " +
+      "growth source with LIVE badge.",
+  },
   {
     version: "2026.04.7",
     date: "2026-04-22",

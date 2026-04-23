@@ -91,6 +91,11 @@ export interface FIPResult {
     year5Inr: number;
     probability: number;
     rationale: string;
+    /** Growth source for Y3/Y5 uplifts on the return scenario. */
+    growthSource?: string;
+    growthKind?: DataKind;
+    growthVintage?: string;
+    growthFetchedAt?: string;
   };
   visaInfo?: {
     visaType: string;
