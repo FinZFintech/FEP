@@ -166,3 +166,62 @@ export async function getUsUnemploymentRate(): Promise<FredLevelData | null> {
     fetchedAt: new Date().toISOString(),
   };
 }
+
+/**
+ * US labor-market tightness signal, derived from JOLTS Job Openings
+ * (JTSJOL) on FRED. We compute a 3-month moving average of the openings
+ * level and compare it against the median of the trailing 12 months.
+ * Tightness > 1.05 = hot (EP bonus), < 0.90 = cold (EP penalty), else neutral.
+ *
+ * This tells the engine "is the US labor market warmer or cooler than its
+ * own recent normal right now?" without hard-coding an absolute threshold
+ * that would drift as the post-COVID reset plays out.
+ */
+export interface JoltsSignal {
+  openings: number;      // latest JTSJOL level (thousands of job openings)
+  openingsDate: string;
+  tightness: number;     // 3-mo MA / 12-mo median
+  band: "hot" | "neutral" | "cold";
+  source: string;
+  dataKind: "live";
+  fetchedAt: string;
+}
+
+function movingAverage(points: FredSeriesPoint[], n: number): number | null {
+  if (points.length < n) return null;
+  const slice = points.slice(-n);
+  return slice.reduce((s, p) => s + p.value, 0) / n;
+}
+
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
+export async function getUsJoltsSignal(): Promise<JoltsSignal | null> {
+  const SERIES = "JTSJOL";
+  const points = await fetchSeries(SERIES);
+  if (!points || points.length < 13) return null;
+
+  const last = points[points.length - 1];
+  const threeMonthMA = movingAverage(points, 3);
+  const trailing12 = points.slice(-13, -1).map((p) => p.value);
+  const baseline = median(trailing12);
+  if (!threeMonthMA || !baseline || baseline === 0) return null;
+
+  const tightness = threeMonthMA / baseline;
+  const band: JoltsSignal["band"] =
+    tightness > 1.05 ? "hot" : tightness < 0.90 ? "cold" : "neutral";
+
+  return {
+    openings: last.value,
+    openingsDate: last.date,
+    tightness,
+    band,
+    source: `FRED JTSJOL — Job Openings, Total Nonfarm (3-mo MA ÷ 12-mo median, through ${last.date})`,
+    dataKind: "live",
+    fetchedAt: new Date().toISOString(),
+  };
+}

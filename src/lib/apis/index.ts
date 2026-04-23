@@ -10,8 +10,11 @@ export type { H1BSalaryData } from "./h1b";
 export { getOccupationDetails } from "./onet";
 export type { ONetOccupationData } from "./onet";
 
-export { getUsWageGrowth, getUsCpiGrowth, getUsUnemploymentRate } from "./fred";
-export type { FredGrowthData, FredLevelData, FredSeriesPoint } from "./fred";
+export { getUsWageGrowth, getUsCpiGrowth, getUsUnemploymentRate, getUsJoltsSignal } from "./fred";
+export type { FredGrowthData, FredLevelData, FredSeriesPoint, JoltsSignal } from "./fred";
+
+export { getUscisH1BSnapshot } from "./uscis-h1b";
+export type { UscisH1BSnapshot } from "./uscis-h1b";
 
 export { getUkWageGrowth } from "./ons";
 export type { OnsGrowthData } from "./ons";
