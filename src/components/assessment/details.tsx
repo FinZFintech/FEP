@@ -284,10 +284,19 @@ function ReturnScenarioCard({ fip }: { fip: FIPResult }) {
         ))}
       </div>
       <p className="text-xs text-slate-400 mt-3 leading-relaxed">{rs.rationale}</p>
+      {rs.growthSource && (
+        <DataSourceLabel
+          source={`Y3/Y5 uplift: ${rs.growthSource}`}
+          dataKind={rs.growthKind ?? "heuristic"}
+          vintage={rs.growthVintage}
+          fetchedAt={rs.growthFetchedAt}
+          className="mt-2"
+        />
+      )}
       <DataSourceLabel
-        source="Return salary = adjusted stay-abroad salary × nationality return multiplier (nationalities.json); Y3 +20% / Y5 +45% uplift; stay-abroad probability from H1B lottery × sponsorship rate where available."
+        source="Return salary = adjusted stay-abroad salary × nationality return multiplier (nationalities.json); stay-abroad probability from H1B lottery × sponsorship rate where available."
         dataKind="heuristic"
-        className="mt-2"
+        className="mt-1"
       />
     </div>
   );

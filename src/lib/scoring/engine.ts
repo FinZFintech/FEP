@@ -11,6 +11,7 @@ import { getSchoolEarnings, getProgramEarnings, getOccupationWages, getOccupatio
 import { getNomisEarnings } from "../apis/nomis";
 import { getCensusGradMultiplier } from "../apis/census";
 import { getAdzunaSalary } from "../apis/adzuna";
+import { getReturnCountryGrowth } from "../apis/worldbank";
 import { getCountryEarnings } from "../apis/country-earnings";
 import { getExchangeRate as getLiveExchangeRate } from "../apis/fx";
 
@@ -779,11 +780,33 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
     });
   }
 
-  // Return-to-home-country scenario
+  // Return-to-home-country scenario. Y3/Y5 uplifts are derived from live
+  // World Bank WDI GDP/capita CAGR for the student's home country when
+  // available; falls back to the fixed +20% / +45% heuristic otherwise.
   const returnMultiplier = getReturnSalaryMultiplier(input.nationality ?? "Indian");
   const returnYear1 = Math.round(adjYear1 * exchangeRate * returnMultiplier);
-  const returnYear3 = Math.round(returnYear1 * 1.20);
-  const returnYear5 = Math.round(returnYear1 * 1.45);
+
+  let returnY3Factor = 1.20;
+  let returnY5Factor = 1.45;
+  let returnGrowthSource = "Internal model — fixed +20% year-3 / +45% year-5 uplift";
+  let returnGrowthKind: "live" | "snapshot" | "heuristic" = "heuristic";
+  let returnGrowthVintage: string | undefined;
+  let returnGrowthFetchedAt: string | undefined;
+
+  try {
+    const homeGrowth = await getReturnCountryGrowth(input.nationality ?? "Indian");
+    if (homeGrowth) {
+      returnY3Factor = Math.pow(1 + homeGrowth.cagr3yr, 3);
+      returnY5Factor = Math.pow(1 + homeGrowth.cagr5yr, 5);
+      returnGrowthSource = homeGrowth.source;
+      returnGrowthKind = "live";
+      returnGrowthVintage = homeGrowth.latestYear;
+      returnGrowthFetchedAt = homeGrowth.fetchedAt;
+    }
+  } catch { /* fall back to fixed uplift */ }
+
+  const returnYear3 = Math.round(returnYear1 * returnY3Factor);
+  const returnYear5 = Math.round(returnYear1 * returnY5Factor);
 
   let returnProbability = 0.30;
   let returnRationale = "Estimated based on immigration patterns";
@@ -869,6 +892,10 @@ export async function computeFIP(input: AssessmentInput): Promise<FIPResult> {
       year5Inr: returnYear5,
       probability: returnProbability,
       rationale: returnRationale,
+      growthSource: returnGrowthSource,
+      growthKind: returnGrowthKind,
+      growthVintage: returnGrowthVintage,
+      growthFetchedAt: returnGrowthFetchedAt,
     },
     visaInfo,
     breakdown,
