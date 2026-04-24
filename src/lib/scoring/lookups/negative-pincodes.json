@@ -1,0 +1,10 @@
+{
+  "_meta": {
+    "description": "Negative pincode list for Framework §20 Geo Fraud Score. Populated by credit ops; placeholder until the first production list is ingested.",
+    "source": "placeholder",
+    "vintage": "2026-04",
+    "notes": "A pincode here triggers the -20% penalty in §4.2. Keep the file sorted and de-duplicated.",
+    "__framework_ref": "§20 Geo Fraud Score"
+  },
+  "pincodes": []
+}

@@ -9,6 +9,7 @@ import type {
   FIPBreakdownItem,
   LoanToIncomeResult,
 } from "@/lib/scoring/types";
+import type { CompositeResult } from "@/lib/scoring/composite-engine";
 import {
   DataSourceLabel,
   DataSourceLegend,
@@ -19,6 +20,7 @@ interface AssessmentDetailsProps {
   ep: EPResult;
   fip: FIPResult;
   lti?: LoanToIncomeResult;
+  composite?: CompositeResult | null;
   methodologyVersion?: string;
   formData: Record<string, unknown>;
 }
@@ -33,10 +35,13 @@ export function AssessmentDetails({
   ep,
   fip,
   lti,
+  composite,
   methodologyVersion,
   formData,
 }: AssessmentDetailsProps) {
-  const [activeTab, setActiveTab] = useState<"overview" | "ep" | "fip" | "lti">("overview");
+  const [activeTab, setActiveTab] = useState<
+    "overview" | "ep" | "fip" | "lti" | "composite"
+  >("overview");
   const currency = fip.currency;
 
   return (
@@ -58,14 +63,25 @@ export function AssessmentDetails({
       {/* LTI Card */}
       {lti && <LTISummaryCard lti={lti} />}
 
+      {/* Composite decision banner */}
+      {composite && <CompositeBanner composite={composite} />}
+
       {/* Tabs */}
       <div className="bg-white rounded-2xl border border-slate-200">
-        <div className="flex border-b border-slate-200">
-          {(["overview", "ep", "fip", ...(lti ? ["lti" as const] : [])] as const).map((tab) => (
+        <div className="flex border-b border-slate-200 overflow-x-auto">
+          {(
+            [
+              "overview",
+              "ep",
+              "fip",
+              ...(lti ? (["lti"] as const) : []),
+              ...(composite ? (["composite"] as const) : []),
+            ] as const
+          ).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab as typeof activeTab)}
-              className={`px-6 py-3.5 text-sm font-medium transition-colors ${
+              className={`px-6 py-3.5 text-sm font-medium transition-colors whitespace-nowrap ${
                 activeTab === tab
                   ? "text-blue-600 border-b-2 border-blue-600"
                   : "text-slate-500 hover:text-slate-700"
@@ -77,7 +93,9 @@ export function AssessmentDetails({
                   ? "EP Breakdown"
                   : tab === "fip"
                     ? "FIP Breakdown"
-                    : "Loan Analysis"}
+                    : tab === "lti"
+                      ? "Loan Analysis"
+                      : "Composite Scorecard"}
             </button>
           ))}
         </div>
@@ -96,8 +114,157 @@ export function AssessmentDetails({
             <FIPBreakdownTab breakdown={fip.breakdown} currency={currency} fip={fip} />
           )}
           {activeTab === "lti" && lti && <LTIDetailTab lti={lti} />}
+          {activeTab === "composite" && composite && <CompositeTab composite={composite} />}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Framework Jan-2026 Composite scorecard ───────────────────────────────
+
+function decisionStyle(decision: CompositeResult["decision"]): { bg: string; text: string; border: string; label: string } {
+  if (decision === "APPROVE")
+    return { bg: "bg-green-50", text: "text-green-700", border: "border-green-200", label: "Approve" };
+  if (decision === "CAUTION")
+    return { bg: "bg-amber-50", text: "text-amber-700", border: "border-amber-200", label: "Caution — manual review" };
+  return { bg: "bg-red-50", text: "text-red-700", border: "border-red-200", label: "Reject" };
+}
+
+function CompositeBanner({ composite }: { composite: CompositeResult }) {
+  const style = decisionStyle(composite.decision);
+  return (
+    <div className={`rounded-2xl border p-6 ${style.bg} ${style.border}`}>
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+            Framework Jan-2026 · Composite Scorecard
+          </p>
+          <p className={`text-2xl font-bold mt-1 ${style.text}`}>
+            {composite.compositeScore.toFixed(1)} / 100 &middot; {style.label}
+          </p>
+          <p className="text-xs text-slate-600 mt-1 max-w-2xl">
+            {composite.decisionReason}
+          </p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-slate-500">Gross weighted</p>
+          <p className="text-lg font-semibold text-slate-800">{composite.grossScore.toFixed(1)}</p>
+          {composite.penaltyDeductionPct > 0 && (
+            <p className="text-xs text-red-600 mt-0.5">
+              −{(composite.penaltyDeductionPct * 100).toFixed(0)}% penalty
+            </p>
+          )}
+        </div>
+      </div>
+      {composite.hardReject?.triggered && (
+        <div className="mt-3 text-xs font-medium text-red-700 bg-red-100 border border-red-200 rounded-md p-2">
+          Hard reject override from §13: {composite.hardReject.reason}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CompositeTab({ composite }: { composite: CompositeResult }) {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-sm font-semibold text-slate-700 mb-3">Parameter contributions</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-xs uppercase text-slate-500">
+              <tr className="border-b border-slate-200">
+                <th className="text-left py-2">Parameter</th>
+                <th className="text-right py-2">Weight</th>
+                <th className="text-right py-2">Score (0–10)</th>
+                <th className="text-right py-2">Weighted</th>
+                <th className="text-left py-2 pl-4">Rationale</th>
+              </tr>
+            </thead>
+            <tbody>
+              {composite.parameters.map((p) => (
+                <tr key={p.parameter} className="border-b border-slate-100">
+                  <td className="py-2 font-medium text-slate-700">{p.parameter}</td>
+                  <td className="py-2 text-right text-slate-600">{(p.weight * 100).toFixed(0)}%</td>
+                  <td className="py-2 text-right font-mono text-slate-700">{p.score.toFixed(1)}</td>
+                  <td className="py-2 text-right font-mono font-semibold text-slate-800">{p.weightedScore.toFixed(1)}</td>
+                  <td className="py-2 pl-4 text-xs text-slate-500 max-w-md">{p.rationale}</td>
+                </tr>
+              ))}
+              <tr className="border-t-2 border-slate-300">
+                <td colSpan={3} className="py-2 text-right font-semibold text-slate-700">Gross weighted</td>
+                <td className="py-2 text-right font-mono font-bold text-slate-900">{composite.grossScore.toFixed(1)}</td>
+                <td className="py-2 pl-4 text-xs text-slate-500">Sum before §4.2 penalty deductions.</td>
+              </tr>
+              {composite.penaltyDeductionPct > 0 && (
+                <tr>
+                  <td colSpan={3} className="py-2 text-right font-semibold text-red-700">Penalty deduction</td>
+                  <td className="py-2 text-right font-mono font-bold text-red-700">
+                    −{(composite.penaltyDeductionPct * 100).toFixed(0)}%
+                  </td>
+                  <td className="py-2 pl-4 text-xs text-red-600">Applied multiplicatively to gross.</td>
+                </tr>
+              )}
+              <tr className="bg-slate-50">
+                <td colSpan={3} className="py-2 text-right font-bold text-slate-800">Composite (final)</td>
+                <td className="py-2 text-right font-mono font-bold text-slate-900">{composite.compositeScore.toFixed(1)}</td>
+                <td className="py-2 pl-4 text-xs text-slate-600">§5 thresholds: ≥80 Approve · 65–79 Caution · &lt;65 Reject.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {composite.penalties.triggered.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-slate-700 mb-3">Triggered penalties (§4.2)</h3>
+          <ul className="space-y-1 text-sm">
+            {composite.penalties.triggered.map((p) => (
+              <li key={p.code} className="flex items-center justify-between border-b border-slate-100 py-1.5">
+                <span className="text-slate-700">{p.label}</span>
+                <span className="font-mono text-red-600 font-semibold">−{(p.deductionPct * 100).toFixed(0)}%</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {composite.insurance.mandatory && (
+        <div className={`rounded-lg border p-3 text-sm ${composite.insurance.flagged ? "bg-amber-50 border-amber-200 text-amber-800" : "bg-green-50 border-green-200 text-green-800"}`}>
+          <strong>Insurance (§25):</strong> {composite.insurance.rationale}
+        </div>
+      )}
+
+      <details className="text-sm">
+        <summary className="cursor-pointer font-semibold text-slate-700 hover:text-slate-900">Module-level breakdown</summary>
+        <div className="mt-3 space-y-4">
+          {[
+            { key: "credit",           label: "§12 Credit Score",         m: composite.modules.credit },
+            { key: "incomeStability",  label: "§13 Income Stability",     m: composite.modules.incomeStability },
+            { key: "incomeSource",     label: "§14 Income Source",        m: composite.modules.incomeSource },
+            { key: "savings",          label: "§15 Savings",              m: composite.modules.savings },
+            { key: "futureIncomeBand", label: "§16 Future Income Band",   m: composite.modules.futureIncomeBand },
+          ].map(({ key, label, m }) => (
+            <div key={key} className="border border-slate-200 rounded-lg p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="font-semibold text-slate-700">{label}</span>
+                <span className="font-mono text-slate-900">{m.score.toFixed(1)} / 10</span>
+              </div>
+              <p className="text-xs text-slate-500 mb-2">{m.rationale}</p>
+              <ul className="text-xs text-slate-600 space-y-0.5">
+                {m.breakdown.map((b, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="font-medium min-w-[8rem]">{b.label}:</span>
+                    <span className="font-mono">{String(b.value)}</span>
+                    <span className="text-slate-500">— {b.rationale}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </details>
     </div>
   );
 }

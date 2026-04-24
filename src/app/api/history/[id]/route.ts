@@ -49,7 +49,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
   const assessment = await prisma.assessment.findUnique({
     where: { id },
-    include: { createdBy: { select: { name: true, email: true } } },
+    include: {
+      createdBy: { select: { name: true, email: true } },
+      coApplicants: true,
+    },
   });
 
   if (!assessment) {
@@ -66,11 +69,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     ? computeLTI(assessment.loanAmountInr, fip.year1Inr, fip.year3Inr)
     : undefined;
 
+  // Rehydrate composite breakdown from storage (computed at assess-time).
+  let composite: unknown = null;
+  if (assessment.compositeBreakdown) {
+    try {
+      composite = JSON.parse(assessment.compositeBreakdown);
+    } catch {
+      composite = null;
+    }
+  }
+
   return NextResponse.json({
     ...assessment,
     ep,
     fip,
     lti,
+    composite,
     methodologyVersion: METHODOLOGY_VERSION,
     ruleSetVersion: assessment.ruleSetVersion,
   });

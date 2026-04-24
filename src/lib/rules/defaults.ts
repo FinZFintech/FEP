@@ -40,6 +40,67 @@ export interface BandRule {
 }
 
 export interface RuleParameters {
+  /** Framework Jan-2026 §4.1 / §5 composite scorecard. */
+  composite?: {
+    weights: {
+      destinationRisk: number;
+      postStudyVisaRisk: number;
+      universityQuality: number;
+      academicProfile: number;
+      standardisedTests: number;
+      workExperience: number;
+      creditScore: number;
+      incomeStability: number;
+      incomeSource: number;
+      savings: number;
+      futureIncome: number;
+    };
+    thresholds: {
+      approve: number;
+      caution: number;
+    };
+  };
+  /** Framework Jan-2026 §12 Credit Score bands. */
+  creditScore?: {
+    bands: { min: number; score: number; label: string }[];
+    bureauBlend: { cibil: number; crif: number };
+    ntcTransitionScore: number;
+    ntcAbbEmiMultipleMin: number;
+  };
+  /** Framework Jan-2026 §13 Income Stability. */
+  incomeStability?: {
+    defaultFoir: number;
+    fepApplicationByUniversityScore: { score: number; pct: number }[];
+  };
+  /** Framework Jan-2026 §14 Income Source. */
+  incomeSource?: {
+    occupationScores: Record<string, number>;
+    parentBlend: { father: number; mother: number };
+  };
+  /** Framework Jan-2026 §15 Savings / skin-in-the-game. */
+  savings?: {
+    bands: { minPct: number; score: number; label: string }[];
+  };
+  /** Framework Jan-2026 §16 Future Income band mapping. */
+  futureIncomeBand?: {
+    foir: number;
+    bands: { minInr: number; score: number; label: string }[];
+  };
+  /** Framework Jan-2026 §4.2 Penalty Triggers. */
+  penalties?: {
+    creditDefault15PlusDpd: number;
+    creditDefaultWriteOff: number;
+    creditOverdueAbove3k: number;
+    geoFraudNegativePincode: number;
+    documentAuthenticityFail: number;
+    admissionVisaFlightNotVerified: number;
+    socialMediaRedFlag: number;
+    maxTotalDeductionPct: number;
+  };
+  /** Framework Jan-2026 §25 Insurance. */
+  insurance?: {
+    mandatoryThresholdInr: number;
+  };
   ep: {
     weights: {
       universityTier: number;
@@ -116,6 +177,85 @@ export interface RuleParameters {
 }
 
 export const DEFAULT_RULE_PARAMETERS: RuleParameters = {
+  composite: {
+    weights: {
+      destinationRisk: 0.04,
+      postStudyVisaRisk: 0.06,
+      universityQuality: 0.15,
+      academicProfile: 0.15,
+      standardisedTests: 0.05,
+      workExperience: 0.04,
+      creditScore: 0.12,
+      incomeStability: 0.08,
+      incomeSource: 0.04,
+      savings: 0.05,
+      futureIncome: 0.22,
+    },
+    thresholds: { approve: 80, caution: 65 },
+  },
+  creditScore: {
+    bands: [
+      { min: 751, score: 10, label: "Excellent (>750)" },
+      { min: 700, score: 8,  label: "Strong (700–750)" },
+      { min: 650, score: 6,  label: "Fair (650–699)" },
+      { min: 1,   score: 3,  label: "Weak (<650)" },
+      { min: 0,   score: 0,  label: "No score / negative history" },
+    ],
+    bureauBlend: { cibil: 0.5, crif: 0.5 },
+    ntcTransitionScore: 8,
+    ntcAbbEmiMultipleMin: 2,
+  },
+  incomeStability: {
+    defaultFoir: 0.5,
+    fepApplicationByUniversityScore: [
+      { score: 10, pct: 1.0 },
+      { score: 8,  pct: 0.5 },
+      { score: 6,  pct: 0.25 },
+    ],
+  },
+  incomeSource: {
+    occupationScores: {
+      PRIVATE: 10,
+      GOVT: 7,
+      SELF_EMPLOYED: 5,
+      FARMER: 5,
+      RETIRED: 6,
+      NOT_WORKING: 0,
+    },
+    parentBlend: { father: 0.6, mother: 0.4 },
+  },
+  savings: {
+    bands: [
+      { minPct: 0.50, score: 10, label: ">50% of COA" },
+      { minPct: 0.40, score: 8,  label: ">40% of COA" },
+      { minPct: 0.30, score: 6,  label: ">30% of COA" },
+      { minPct: 0.20, score: 4,  label: ">20% of COA" },
+      { minPct: 0.10, score: 2,  label: ">10% of COA" },
+      { minPct: 0.00, score: 0,  label: "≤10% of COA" },
+    ],
+  },
+  futureIncomeBand: {
+    foir: 0.5,
+    bands: [
+      { minInr: 150_000, score: 10, label: "> ₹1.5L / mo" },
+      { minInr: 100_000, score: 7,  label: "₹1L – ₹1.5L / mo" },
+      { minInr: 75_000,  score: 4,  label: "₹75K – ₹1L / mo" },
+      { minInr: 0,       score: 0,  label: "< ₹75K / mo" },
+    ],
+  },
+  penalties: {
+    creditDefault15PlusDpd: 0.10,
+    creditDefaultWriteOff: 0.20,
+    creditOverdueAbove3k: 0.05,
+    geoFraudNegativePincode: 0.20,
+    documentAuthenticityFail: 0.25,
+    admissionVisaFlightNotVerified: 0.10,
+    socialMediaRedFlag: 0.10,
+    maxTotalDeductionPct: 1.0,
+  },
+  insurance: {
+    mandatoryThresholdInr: 2_000_000,
+  },
   ep: {
     weights: {
       universityTier: 0.25,
@@ -241,4 +381,12 @@ export const DEFAULT_DATA_SOURCES: RuleSourceRef[] = [
   { label: "QILT Graduate Outcomes Survey", kind: "snapshot", vintage: "2024", notes: "Australian graduate employment rate." },
   { label: "OECD Education at a Glance", kind: "snapshot", vintage: "2024", notes: "Generic country-level graduate employment fallback." },
   { label: "Internal: nationality salary / sponsorship table", kind: "snapshot", vintage: "2024", notes: "Visa type, OPT/PGWP months, H1B lottery odds, employer sponsorship rates." },
+  { label: "Framework Jan-2026 composite scorecard (§4.1, §5)",         kind: "heuristic", vintage: "2026-04", notes: "Re-weighted 11-parameter scorecard; approve ≥80, caution 65–79, reject <65." },
+  { label: "Framework Jan-2026 §12 Credit bands (CIBIL / CRIF)",         kind: "heuristic", vintage: "2026-04", notes: "Per-person 0.5/0.5 bureau blend; NTC override scores 8 for Class 12→UG and UG→PG." },
+  { label: "Framework Jan-2026 §13 Income Stability joint coverage",     kind: "heuristic", vintage: "2026-04", notes: "FOIR 0.5, rank-tier coverage floors trigger hard-reject below floor." },
+  { label: "Framework Jan-2026 §14 Income Source parent blend",          kind: "heuristic", vintage: "2026-04", notes: "Father 0.6 + Mother 0.4, by occupation type." },
+  { label: "Framework Jan-2026 §15 Savings / Skin-in-the-game bands",    kind: "heuristic", vintage: "2026-04", notes: "Scholarships + MF + FD + savings as % of COA → 0–10." },
+  { label: "Framework Jan-2026 §4.2 Penalty Triggers",                   kind: "heuristic", vintage: "2026-04", notes: "Up to −100% deduction: credit defaults, geo fraud, doc authenticity, admit/visa/flight, social media." },
+  { label: "Framework Jan-2026 §25 Insurance policy",                    kind: "heuristic", vintage: "2026-04", notes: "Mandatory bundled life+health cover for loans > ₹20L." },
+  { label: "Negative pincode list (placeholder)",                        kind: "heuristic", vintage: "2026-04", notes: "Empty until credit ops supplies the first production list; feeds §20 geo fraud penalty." },
 ];

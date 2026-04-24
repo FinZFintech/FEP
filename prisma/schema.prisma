@@ -102,9 +102,73 @@ model Assessment {
   fipCurrency   String
   fipBreakdown  String  @db.Text
 
+  // ── Framework §12 (Credit), §13 (Income Stability), §15 (Savings) ──────
+  // Applicant credit and income (co-applicants live in CoApplicant model)
+  applicantCibilScore      Int?
+  applicantCrifScore       Int?
+  applicantAnnualSalary    Float?
+  applicantAnnualOther     Float?
+  applicantExistingEmis    Float[] @default([])
+  applicantFutureEmiInr    Float?
+  isNewToCredit            Boolean @default(false)
+  averageBankBalance3moInr Float?
+
+  // Savings / skin-in-the-game (§15)
+  tuitionFeesInr       Float?
+  livingExpensesInr    Float?
+  totalCostOfAttInr    Float?
+  scholarshipInr       Float  @default(0)
+  mutualFundInr        Float  @default(0)
+  fdInr                Float  @default(0)
+  bankSavingsInr       Float  @default(0)
+  otherSavingsInr      Float  @default(0)
+
+  // ── Framework §4.2 Penalty flags (manual check-points) ─────────────────
+  addressPincode              String?
+  inNegativePincodeList       Boolean @default(false)
+  documentAuthenticityStatus  String? // VERIFIED | PARTIAL | MISMATCH | FORGERY | UNVERIFIABLE
+  admissionVisaFlightStatus   String? // ALL_CONFIRMED | VISA_IN_PROCESS | CONDITIONAL | LIKELY_REJECT | FAKE
+  socialMediaRedFlag          Boolean @default(false)
+  creditDefault15PlusDpd      Boolean @default(false)
+  creditDefaultWriteOff       Boolean @default(false)
+  creditOverdueAbove3k        Boolean @default(false)
+  earlyEmiBounceHistory       Boolean @default(false)
+  consultantBlacklistHit      Boolean @default(false)
+
+  // ── Framework §25 Insurance ────────────────────────────────────────────
+  insuranceBundle String? // LIFE_ACC_HEALTH | LIFE_ACC | CREDIT_LIFE_ONLY | DECLINED | NONE
+
+  // ── Composite scorecard outputs (Framework §4.1, §5) ───────────────────
+  compositeScore     Float?
+  compositeDecision  String? // APPROVE | CAUTION | REJECT
+  compositeBreakdown String? @db.Text // JSON
+
+  coApplicants CoApplicant[]
+
   notes      String?  @db.Text
   batchJobId String?
   batchJob   BatchJob? @relation(fields: [batchJobId], references: [id])
+}
+
+/// Framework §13, §14 — co-applicant details for income stability and source.
+/// Hard cap of 3 enforced at the API layer.
+model CoApplicant {
+  id           String @id @default(cuid())
+  assessmentId String
+  assessment   Assessment @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+
+  relation       String  // FATHER | MOTHER | SPOUSE | SIBLING | GUARDIAN
+  occupationType String  // PRIVATE | GOVT | SELF_EMPLOYED | NOT_WORKING | RETIRED | FARMER
+
+  cibilScore     Int?
+  crifScore      Int?
+
+  annualSalary   Float  @default(0)
+  annualRental   Float  @default(0)
+  annualOther    Float  @default(0)
+  existingEmis   Float[] @default([])
+
+  @@index([assessmentId])
 }
 
 model BatchJob {

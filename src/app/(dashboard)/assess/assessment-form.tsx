@@ -3,6 +3,80 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
+type CoApplicantRelation = "FATHER" | "MOTHER" | "SPOUSE" | "SIBLING" | "GUARDIAN";
+type OccupationType =
+  | "PRIVATE" | "GOVT" | "SELF_EMPLOYED" | "NOT_WORKING" | "RETIRED" | "FARMER";
+
+interface CoApplicantFormState {
+  relation: CoApplicantRelation;
+  occupationType: OccupationType;
+  cibilScore: string;
+  crifScore: string;
+  annualSalary: string;
+  annualRental: string;
+  annualOther: string;
+  existingEmi1: string;
+  existingEmi2: string;
+  existingEmi3: string;
+}
+
+const EMPTY_COAPP: CoApplicantFormState = {
+  relation: "FATHER",
+  occupationType: "PRIVATE",
+  cibilScore: "",
+  crifScore: "",
+  annualSalary: "",
+  annualRental: "",
+  annualOther: "",
+  existingEmi1: "",
+  existingEmi2: "",
+  existingEmi3: "",
+};
+
+const CO_APP_RELATIONS: { value: CoApplicantRelation; label: string }[] = [
+  { value: "FATHER", label: "Father" },
+  { value: "MOTHER", label: "Mother" },
+  { value: "SPOUSE", label: "Spouse" },
+  { value: "SIBLING", label: "Sibling" },
+  { value: "GUARDIAN", label: "Guardian" },
+];
+
+const OCCUPATION_TYPES: { value: OccupationType; label: string }[] = [
+  { value: "PRIVATE", label: "Private Sector Employee" },
+  { value: "GOVT", label: "Govt Job" },
+  { value: "SELF_EMPLOYED", label: "Self-Employed" },
+  { value: "RETIRED", label: "Retired / Pensioner" },
+  { value: "FARMER", label: "Farmer" },
+  { value: "NOT_WORKING", label: "Not Working" },
+];
+
+const DOC_AUTH_STATUSES = [
+  { value: "", label: "Not checked yet" },
+  { value: "VERIFIED", label: "Verified" },
+  { value: "PARTIAL", label: "Partially verified" },
+  { value: "MISMATCH", label: "Mismatch — clarified" },
+  { value: "FORGERY", label: "Suspected forgery / edits" },
+  { value: "UNVERIFIABLE", label: "Unverifiable documents" },
+];
+
+const ADMIT_VISA_FLIGHT_STATUSES = [
+  { value: "", label: "Not checked yet" },
+  { value: "ALL_CONFIRMED", label: "Admit + visa stamped + flight booked" },
+  { value: "VISA_IN_PROCESS", label: "Admit + visa in process" },
+  { value: "CONDITIONAL", label: "Conditional admit / visa pending" },
+  { value: "LIKELY_REJECT", label: "Likely visa rejection" },
+  { value: "FAKE", label: "Fake / unverifiable documents" },
+];
+
+const INSURANCE_BUNDLES = [
+  { value: "", label: "Not captured" },
+  { value: "LIFE_ACC_HEALTH", label: "Life + Accidental + Health (bundled)" },
+  { value: "LIFE_ACC", label: "Life + Accidental only" },
+  { value: "CREDIT_LIFE_ONLY", label: "Basic credit life only" },
+  { value: "DECLINED", label: "Declined by customer" },
+  { value: "NONE", label: "No insurance" },
+];
+
 const COUNTRIES = ["US", "UK", "Canada", "Australia", "Germany", "France", "Ireland", "New Zealand", "Netherlands", "Singapore", "Sweden"];
 const NATIONALITIES = [
   { value: "Indian", label: "Indian" },
@@ -91,15 +165,88 @@ export function AssessmentForm({
     targetCity: initialData?.targetCity ?? "",
     loanAmountInr: initialData?.loanAmountInr != null ? String(initialData.loanAmountInr) : "",
     notes: initialData?.notes ?? "",
+
+    // Framework Jan-2026 fields — all optional. Composite score only
+    // computes when at least one of these is populated.
+    applicantCibilScore: "",
+    applicantCrifScore: "",
+    applicantAnnualSalary: "",
+    applicantAnnualOther: "",
+    applicantExistingEmi: "",
+    applicantFutureEmiInr: "",
+    isNewToCredit: false,
+    isNtcEligibleTransition: false,
+    averageBankBalance3moInr: "",
+
+    tuitionFeesInr: "",
+    livingExpensesInr: "",
+    totalCostOfAttInr: "",
+    scholarshipInr: "",
+    mutualFundInr: "",
+    fdInr: "",
+    bankSavingsInr: "",
+    otherSavingsInr: "",
+
+    addressPincode: "",
+    documentAuthenticityStatus: "",
+    admissionVisaFlightStatus: "",
+    socialMediaRedFlag: false,
+    creditDefault15PlusDpd: false,
+    creditDefaultWriteOff: false,
+    creditOverdueAbove3k: false,
+    earlyEmiBounceHistory: false,
+    consultantBlacklistHit: false,
+
+    insuranceBundle: "",
   });
 
+  const [coApplicants, setCoApplicants] = useState<CoApplicantFormState[]>([]);
+
+  const [openSection, setOpenSection] = useState<string | null>(null);
+  const toggleSection = (key: string) =>
+    setOpenSection((cur) => (cur === key ? null : key));
+
   const set = (key: string, val: unknown) => setForm((f) => ({ ...f, [key]: val }));
+
+  const updateCoApp = (idx: number, patch: Partial<CoApplicantFormState>) => {
+    setCoApplicants((cs) => cs.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
+  };
+  const addCoApp = () => {
+    if (coApplicants.length >= 3) return;
+    setCoApplicants((cs) => [...cs, { ...EMPTY_COAPP }]);
+  };
+  const removeCoApp = (idx: number) =>
+    setCoApplicants((cs) => cs.filter((_, i) => i !== idx));
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const cgpa = parseFloat(form.undergradCgpa);
     // Normalise CGPA to 10-point scale for storage
     const normCgpa = form.cgpaScale === "4" ? cgpa : cgpa;
+
+    const numOrUndef = (v: string): number | undefined =>
+      v === "" ? undefined : Number(v);
+    const num = (v: string): number => (v === "" ? 0 : Number(v));
+
+    const applicantEmis = form.applicantExistingEmi
+      ? form.applicantExistingEmi
+          .split(",")
+          .map((s) => parseFloat(s.trim()))
+          .filter((n) => !Number.isNaN(n) && n >= 0)
+      : undefined;
+
+    const coApplicantsPayload = coApplicants.map((c) => ({
+      relation: c.relation,
+      occupationType: c.occupationType,
+      cibilScore: numOrUndef(c.cibilScore),
+      crifScore: numOrUndef(c.crifScore),
+      annualSalary: num(c.annualSalary),
+      annualRental: num(c.annualRental),
+      annualOther: num(c.annualOther),
+      existingEmis: [c.existingEmi1, c.existingEmi2, c.existingEmi3]
+        .map((s) => parseFloat(s))
+        .filter((n) => !Number.isNaN(n) && n >= 0),
+    }));
 
     onSubmit({
       studentName: form.studentName,
@@ -121,6 +268,40 @@ export function AssessmentForm({
       targetCity: form.targetCity || undefined,
       loanAmountInr: form.loanAmountInr ? parseFloat(form.loanAmountInr) : undefined,
       notes: form.notes || undefined,
+
+      // Framework Jan-2026
+      applicantCibilScore: numOrUndef(form.applicantCibilScore),
+      applicantCrifScore: numOrUndef(form.applicantCrifScore),
+      applicantAnnualSalary: numOrUndef(form.applicantAnnualSalary),
+      applicantAnnualOther: numOrUndef(form.applicantAnnualOther),
+      applicantExistingEmis: applicantEmis,
+      applicantFutureEmiInr: numOrUndef(form.applicantFutureEmiInr),
+      isNewToCredit: form.isNewToCredit,
+      isNtcEligibleTransition: form.isNtcEligibleTransition,
+      averageBankBalance3moInr: numOrUndef(form.averageBankBalance3moInr),
+
+      coApplicants: coApplicantsPayload.length ? coApplicantsPayload : undefined,
+
+      tuitionFeesInr: numOrUndef(form.tuitionFeesInr),
+      livingExpensesInr: numOrUndef(form.livingExpensesInr),
+      totalCostOfAttInr: numOrUndef(form.totalCostOfAttInr),
+      scholarshipInr: numOrUndef(form.scholarshipInr),
+      mutualFundInr: numOrUndef(form.mutualFundInr),
+      fdInr: numOrUndef(form.fdInr),
+      bankSavingsInr: numOrUndef(form.bankSavingsInr),
+      otherSavingsInr: numOrUndef(form.otherSavingsInr),
+
+      addressPincode: form.addressPincode || undefined,
+      documentAuthenticityStatus: form.documentAuthenticityStatus || undefined,
+      admissionVisaFlightStatus: form.admissionVisaFlightStatus || undefined,
+      socialMediaRedFlag: form.socialMediaRedFlag,
+      creditDefault15PlusDpd: form.creditDefault15PlusDpd,
+      creditDefaultWriteOff: form.creditDefaultWriteOff,
+      creditOverdueAbove3k: form.creditOverdueAbove3k,
+      earlyEmiBounceHistory: form.earlyEmiBounceHistory,
+      consultantBlacklistHit: form.consultantBlacklistHit,
+
+      insuranceBundle: form.insuranceBundle || undefined,
     });
   };
 
@@ -274,6 +455,297 @@ export function AssessmentForm({
         </div>
       </section>
 
+      {/* Framework Jan-2026 — Composite inputs (collapsible) */}
+      <section className="bg-white rounded-2xl border border-slate-200 p-6">
+        <h2 className="text-base font-semibold text-slate-900 mb-1 flex items-center gap-2">
+          <span className="w-6 h-6 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-xs font-bold">4</span>
+          Underwriting Inputs — Framework Jan-2026 <span className="text-xs font-normal text-slate-500">(optional)</span>
+        </h2>
+        <p className="text-xs text-slate-500 mb-4">
+          Populate these to get a composite 0–100 risk score with approve / caution / reject decision.
+          Leave blank to skip and only run EP + FIP.
+        </p>
+
+        {/* Applicant credit + NTC */}
+        <Collapsible
+          title="Applicant Credit & Income (§12 / §13)"
+          open={openSection === "credit"}
+          onToggle={() => toggleSection("credit")}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass}>CIBIL Score</label>
+              <input className={inputClass} type="number" min="0" max="900"
+                value={form.applicantCibilScore}
+                onChange={e => set("applicantCibilScore", e.target.value)}
+                placeholder="e.g. 760" />
+            </div>
+            <div>
+              <label className={labelClass}>CRIF Score</label>
+              <input className={inputClass} type="number" min="0" max="900"
+                value={form.applicantCrifScore}
+                onChange={e => set("applicantCrifScore", e.target.value)}
+                placeholder="e.g. 770" />
+            </div>
+            <div>
+              <label className={labelClass}>Annual Salary (INR)</label>
+              <input className={inputClass} type="number" min="0"
+                value={form.applicantAnnualSalary}
+                onChange={e => set("applicantAnnualSalary", e.target.value)}
+                placeholder="e.g. 1200000" />
+            </div>
+            <div>
+              <label className={labelClass}>Annual Other Income (INR)</label>
+              <input className={inputClass} type="number" min="0"
+                value={form.applicantAnnualOther}
+                onChange={e => set("applicantAnnualOther", e.target.value)}
+                placeholder="e.g. 0" />
+            </div>
+            <div>
+              <label className={labelClass}>Existing EMIs (INR/mo, comma-separated)</label>
+              <input className={inputClass} type="text"
+                value={form.applicantExistingEmi}
+                onChange={e => set("applicantExistingEmi", e.target.value)}
+                placeholder="e.g. 12000, 8000" />
+            </div>
+            <div>
+              <label className={labelClass}>Future EMI Post-Moratorium (INR/mo)</label>
+              <input className={inputClass} type="number" min="0"
+                value={form.applicantFutureEmiInr}
+                onChange={e => set("applicantFutureEmiInr", e.target.value)}
+                placeholder="e.g. 45000" />
+            </div>
+            <div>
+              <label className={labelClass}>Avg. Bank Balance (last 3 months, INR)</label>
+              <input className={inputClass} type="number" min="0"
+                value={form.averageBankBalance3moInr}
+                onChange={e => set("averageBankBalance3moInr", e.target.value)}
+                placeholder="e.g. 250000" />
+            </div>
+            <div className="flex items-center gap-3 pt-5">
+              <input type="checkbox" id="isNtc"
+                className="w-4 h-4 rounded border-slate-300 text-amber-600"
+                checked={form.isNewToCredit}
+                onChange={e => set("isNewToCredit", e.target.checked)} />
+              <label htmlFor="isNtc" className="text-sm font-medium text-slate-700">
+                New to Credit (NTC)
+              </label>
+            </div>
+            {form.isNewToCredit && (
+              <div className="flex items-center gap-3 pt-5">
+                <input type="checkbox" id="isNtcEligible"
+                  className="w-4 h-4 rounded border-slate-300 text-amber-600"
+                  checked={form.isNtcEligibleTransition}
+                  onChange={e => set("isNtcEligibleTransition", e.target.checked)} />
+                <label htmlFor="isNtcEligible" className="text-sm font-medium text-slate-700">
+                  Class 12 → UG or UG → immediate PG transition
+                </label>
+              </div>
+            )}
+          </div>
+        </Collapsible>
+
+        {/* Co-applicants */}
+        <Collapsible
+          title={`Co-Applicants (${coApplicants.length} / 3) — §13 / §14`}
+          open={openSection === "coapps"}
+          onToggle={() => toggleSection("coapps")}
+        >
+          {coApplicants.length === 0 && (
+            <p className="text-sm text-slate-500 mb-3">
+              No co-applicants added. The framework expects at least a father/mother
+              for joint-coverage scoring.
+            </p>
+          )}
+          {coApplicants.map((c, i) => (
+            <div key={i} className="border border-slate-200 rounded-xl p-4 mb-3 bg-slate-50/50">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-sm font-semibold text-slate-700">Co-applicant {i + 1}</span>
+                <button type="button" onClick={() => removeCoApp(i)}
+                  className="text-xs text-red-600 hover:text-red-700 font-medium">
+                  Remove
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Relation</label>
+                  <select className={inputClass} value={c.relation}
+                    onChange={e => updateCoApp(i, { relation: e.target.value as CoApplicantRelation })}>
+                    {CO_APP_RELATIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Occupation</label>
+                  <select className={inputClass} value={c.occupationType}
+                    onChange={e => updateCoApp(i, { occupationType: e.target.value as OccupationType })}>
+                    {OCCUPATION_TYPES.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>CIBIL</label>
+                  <input className={inputClass} type="number" min="0" max="900" value={c.cibilScore}
+                    onChange={e => updateCoApp(i, { cibilScore: e.target.value })} />
+                </div>
+                <div>
+                  <label className={labelClass}>CRIF</label>
+                  <input className={inputClass} type="number" min="0" max="900" value={c.crifScore}
+                    onChange={e => updateCoApp(i, { crifScore: e.target.value })} />
+                </div>
+                <div>
+                  <label className={labelClass}>Annual Salary (INR)</label>
+                  <input className={inputClass} type="number" min="0" value={c.annualSalary}
+                    onChange={e => updateCoApp(i, { annualSalary: e.target.value })} />
+                </div>
+                <div>
+                  <label className={labelClass}>Annual Rental (INR)</label>
+                  <input className={inputClass} type="number" min="0" value={c.annualRental}
+                    onChange={e => updateCoApp(i, { annualRental: e.target.value })} />
+                </div>
+                <div>
+                  <label className={labelClass}>Annual Other (INR)</label>
+                  <input className={inputClass} type="number" min="0" value={c.annualOther}
+                    onChange={e => updateCoApp(i, { annualOther: e.target.value })} />
+                </div>
+                <div>
+                  <label className={labelClass}>Existing EMIs (up to 3, INR/mo)</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    <input className={inputClass} type="number" min="0" value={c.existingEmi1}
+                      onChange={e => updateCoApp(i, { existingEmi1: e.target.value })} placeholder="EMI 1" />
+                    <input className={inputClass} type="number" min="0" value={c.existingEmi2}
+                      onChange={e => updateCoApp(i, { existingEmi2: e.target.value })} placeholder="EMI 2" />
+                    <input className={inputClass} type="number" min="0" value={c.existingEmi3}
+                      onChange={e => updateCoApp(i, { existingEmi3: e.target.value })} placeholder="EMI 3" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+          {coApplicants.length < 3 && (
+            <button type="button" onClick={addCoApp}
+              className="text-sm font-medium text-blue-600 hover:text-blue-700">
+              + Add Co-Applicant
+            </button>
+          )}
+        </Collapsible>
+
+        {/* Savings / skin in the game */}
+        <Collapsible
+          title="Savings & Skin-in-the-game (§15)"
+          open={openSection === "savings"}
+          onToggle={() => toggleSection("savings")}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className={labelClass}>Tuition Fees (INR, course total)</label>
+              <input className={inputClass} type="number" min="0"
+                value={form.tuitionFeesInr}
+                onChange={e => set("tuitionFeesInr", e.target.value)} />
+            </div>
+            <div>
+              <label className={labelClass}>Living Expenses (INR, course total)</label>
+              <input className={inputClass} type="number" min="0"
+                value={form.livingExpensesInr}
+                onChange={e => set("livingExpensesInr", e.target.value)} />
+            </div>
+            <div>
+              <label className={labelClass}>Total COA (INR)</label>
+              <input className={inputClass} type="number" min="0"
+                value={form.totalCostOfAttInr}
+                onChange={e => set("totalCostOfAttInr", e.target.value)}
+                placeholder="If blank, tuition + living is used" />
+            </div>
+            <div>
+              <label className={labelClass}>Scholarships (INR)</label>
+              <input className={inputClass} type="number" min="0"
+                value={form.scholarshipInr}
+                onChange={e => set("scholarshipInr", e.target.value)} />
+            </div>
+            <div>
+              <label className={labelClass}>Mutual Funds (INR)</label>
+              <input className={inputClass} type="number" min="0"
+                value={form.mutualFundInr}
+                onChange={e => set("mutualFundInr", e.target.value)} />
+            </div>
+            <div>
+              <label className={labelClass}>Fixed Deposits (INR)</label>
+              <input className={inputClass} type="number" min="0"
+                value={form.fdInr}
+                onChange={e => set("fdInr", e.target.value)} />
+            </div>
+            <div>
+              <label className={labelClass}>Bank Savings (INR)</label>
+              <input className={inputClass} type="number" min="0"
+                value={form.bankSavingsInr}
+                onChange={e => set("bankSavingsInr", e.target.value)} />
+            </div>
+            <div>
+              <label className={labelClass}>Other Savings (INR)</label>
+              <input className={inputClass} type="number" min="0"
+                value={form.otherSavingsInr}
+                onChange={e => set("otherSavingsInr", e.target.value)} />
+            </div>
+          </div>
+        </Collapsible>
+
+        {/* Penalty checkpoints */}
+        <Collapsible
+          title="Fraud / Verification Checkpoints (§4.2)"
+          open={openSection === "penalties"}
+          onToggle={() => toggleSection("penalties")}
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className={labelClass}>Address Pincode (Applicant)</label>
+              <input className={inputClass} type="text" maxLength={8}
+                value={form.addressPincode}
+                onChange={e => set("addressPincode", e.target.value)}
+                placeholder="e.g. 400001" />
+            </div>
+            <div>
+              <label className={labelClass}>Document Authenticity (§21)</label>
+              <select className={inputClass} value={form.documentAuthenticityStatus}
+                onChange={e => set("documentAuthenticityStatus", e.target.value)}>
+                {DOC_AUTH_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Admission / Visa / Flight (§22)</label>
+              <select className={inputClass} value={form.admissionVisaFlightStatus}
+                onChange={e => set("admissionVisaFlightStatus", e.target.value)}>
+                {ADMIT_VISA_FLIGHT_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>Insurance Bundle (§25)</label>
+              <select className={inputClass} value={form.insuranceBundle}
+                onChange={e => set("insuranceBundle", e.target.value)}>
+                {INSURANCE_BUNDLES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-2">
+            <CheckboxRow label="Credit: 15+ DPD in last 36 months (−10%)"
+              checked={form.creditDefault15PlusDpd}
+              onChange={v => set("creditDefault15PlusDpd", v)} />
+            <CheckboxRow label="Credit: Write-off / settled in last 24 months (−20%)"
+              checked={form.creditDefaultWriteOff}
+              onChange={v => set("creditDefaultWriteOff", v)} />
+            <CheckboxRow label="Credit: Overdue > ₹3,000 (−5%)"
+              checked={form.creditOverdueAbove3k}
+              onChange={v => set("creditOverdueAbove3k", v)} />
+            <CheckboxRow label="Social media red flags (−10%)"
+              checked={form.socialMediaRedFlag}
+              onChange={v => set("socialMediaRedFlag", v)} />
+            <CheckboxRow label="Early EMI bounce history (ops flag, 0%)"
+              checked={form.earlyEmiBounceHistory}
+              onChange={v => set("earlyEmiBounceHistory", v)} />
+            <CheckboxRow label="Consultant blacklist hit (ops flag, 0%)"
+              checked={form.consultantBlacklistHit}
+              onChange={v => set("consultantBlacklistHit", v)} />
+          </div>
+        </Collapsible>
+      </section>
+
       <div className="flex justify-end">
         <button
           type="submit"
@@ -299,5 +771,50 @@ export function AssessmentForm({
         </button>
       </div>
     </form>
+  );
+}
+
+interface CollapsibleProps {
+  title: string;
+  open: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}
+
+function Collapsible({ title, open, onToggle, children }: CollapsibleProps) {
+  return (
+    <div className="border border-slate-200 rounded-xl mb-3 overflow-hidden">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 text-sm font-medium text-slate-700"
+      >
+        <span>{title}</span>
+        <span className={`transition-transform ${open ? "rotate-180" : ""}`}>▾</span>
+      </button>
+      {open && <div className="p-4 bg-white">{children}</div>}
+    </div>
+  );
+}
+
+function CheckboxRow({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+      <input
+        type="checkbox"
+        className="w-4 h-4 rounded border-slate-300 text-amber-600"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span>{label}</span>
+    </label>
   );
 }

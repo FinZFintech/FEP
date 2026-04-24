@@ -9,9 +9,28 @@
  * Results persisted in the database carry the version that produced them,
  * so historical assessments remain reproducible even after a recalibration.
  */
-export const METHODOLOGY_VERSION = "2026.04.8";
+export const METHODOLOGY_VERSION = "2026.05.0";
 
 export const METHODOLOGY_CHANGELOG: { version: string; date: string; summary: string }[] = [
+  {
+    version: "2026.05.0",
+    date: "2026-04-24",
+    summary:
+      "Framework Jan-2026 composite scorecard integrated. New modules: " +
+      "§12 Credit Score (CIBIL/CRIF bands with 0.5/0.5 blend + NTC transition rule), " +
+      "§13 Income Stability (joint coverage across applicant + up to 3 co-applicants + FEP " +
+      "at 100/50/25% by university score, rank-tier coverage floors with hard-reject below floor), " +
+      "§14 Income Source (father 0.6 / mother 0.4 blend by occupation type), " +
+      "§15 Savings (skin-in-the-game % of COA banded 0–10), " +
+      "§16 Future Income Band (Y1 INR disposable → 0/4/7/10), " +
+      "§4.2 Penalty Triggers (-10/-20/-5/-20/-25/-10/-10% deductions), " +
+      "§25 Insurance (mandatory bundled life+health for loans > ₹20L). " +
+      "Composite weights re-balanced from framework's 100% table " +
+      "(FIP 22%, credit 12%, income stability 8%, university 15%, academic 15%, destination 4%, " +
+      "PSW 6%, tests 5%, work-ex 4%, income source 4%, savings 5%). " +
+      "§5 decisioning thresholds: ≥80 APPROVE, 65–79 CAUTION, <65 REJECT. " +
+      "Hard-reject override when §13 joint-coverage floor is breached.",
+  },
   {
     version: "2026.04.8",
     date: "2026-04-22",

@@ -4,6 +4,7 @@ import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { EPResult, FIPResult, LoanToIncomeResult } from "@/lib/scoring/types";
+import type { CompositeResult } from "@/lib/scoring/composite-engine";
 import { AssessmentDetails } from "@/components/assessment/details";
 
 interface AssessmentDetail {
@@ -31,6 +32,7 @@ interface AssessmentDetail {
   ep: EPResult;
   fip: FIPResult;
   lti?: LoanToIncomeResult;
+  composite?: CompositeResult | null;
   methodologyVersion?: string;
   ruleSetVersion?: string | null;
 }
@@ -197,6 +199,7 @@ export default function CaseDetailPage({ params }: { params: Promise<{ id: strin
         ep={data.ep}
         fip={data.fip}
         lti={data.lti}
+        composite={data.composite}
         methodologyVersion={data.methodologyVersion}
         formData={formData}
       />

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { EPResult, FIPResult, LoanToIncomeResult } from "@/lib/scoring/types";
+import type { CompositeResult } from "@/lib/scoring/composite-engine";
 import { AssessmentDetails } from "@/components/assessment/details";
 
 interface ResultCardProps {
@@ -10,6 +11,7 @@ interface ResultCardProps {
     ep: EPResult;
     fip: FIPResult;
     lti?: LoanToIncomeResult;
+    composite?: CompositeResult | null;
     methodologyVersion?: string;
   };
   formData: Record<string, unknown>;
@@ -17,7 +19,7 @@ interface ResultCardProps {
 }
 
 export function ResultCard({ result, formData, onNewAssessment }: ResultCardProps) {
-  const { ep, fip, lti, methodologyVersion } = result;
+  const { ep, fip, lti, composite, methodologyVersion } = result;
   const [exporting, setExporting] = useState(false);
   const studentName = formData.studentName as string;
 
@@ -73,6 +75,7 @@ export function ResultCard({ result, formData, onNewAssessment }: ResultCardProp
         ep={ep}
         fip={fip}
         lti={lti}
+        composite={composite}
         methodologyVersion={methodologyVersion}
         formData={formData}
       />
