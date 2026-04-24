@@ -49,6 +49,26 @@ model User {
   assessments Assessment[]
   batchJobs   BatchJob[]
   ruleSets    RuleSet[]
+  apiKeys     ApiKey[]
+}
+
+/// Machine-to-machine API key for calling endpoints like /api/assess without
+/// a browser session. The raw key is shown once at mint time and only its
+/// SHA-256 hash is stored. Each key authenticates as `user` — assessments
+/// created with the key are attributed to that user for audit.
+model ApiKey {
+  id         String    @id @default(cuid())
+  name       String    // human-readable label, e.g. "Partner LMS — prod"
+  prefix     String    // first 12 chars of the raw key, safe to show in UI/logs
+  hash       String    @unique // sha256 hex digest of the raw key
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model VerificationToken {

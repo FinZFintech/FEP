@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
+import { authenticateApiKey, parseBearer } from "@/lib/auth/api-key";
 import { prisma } from "@/lib/db";
 import { computeEP, computeFIP, computeLTI } from "@/lib/scoring/engine";
 import { METHODOLOGY_VERSION } from "@/lib/scoring/methodology";
@@ -177,9 +178,31 @@ function buildCompositeExtras(b: Body): CompositeExtraInput {
 // ─── Route ────────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
+  // Two authentication paths:
+  //  1. Machine-to-machine via `Authorization: Bearer <key>` (or `X-API-Key`).
+  //  2. Browser session via NextAuth (Google OAuth, @finz.finance emails).
+  // The key-based path runs first so the browser fallback isn't consulted for
+  // machine callers that happen to also have a session cookie.
+  const rawKey =
+    parseBearer(req.headers.get("authorization")) ??
+    req.headers.get("x-api-key");
+
+  let actingUserId: string;
+  if (rawKey) {
+    const principal = await authenticateApiKey(rawKey);
+    if (!principal) {
+      return NextResponse.json(
+        { error: "Invalid or revoked API key" },
+        { status: 401 },
+      );
+    }
+    actingUserId = principal.userId;
+  } else {
+    const session = await auth();
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
+    }
+    actingUserId = session.user.id;
   }
 
   const raw = await req.json();
@@ -230,7 +253,7 @@ export async function POST(req: NextRequest) {
 
   const assessment = await prisma.assessment.create({
     data: {
-      createdById: session.user.id,
+      createdById: actingUserId,
       ruleSetVersion: activeRuleSet.version,
       studentName: body.studentName,
       undergradInstitution: body.undergradInstitution,
